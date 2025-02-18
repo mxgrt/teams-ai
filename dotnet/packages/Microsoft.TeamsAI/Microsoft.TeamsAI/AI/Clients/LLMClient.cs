@@ -1,5 +1,4 @@
-﻿using Google.Protobuf.WellKnownTypes;
-using Microsoft.Bot.Builder;
+﻿using Microsoft.Bot.Builder;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Teams.AI.AI.Models;
@@ -172,29 +171,11 @@ namespace Microsoft.Teams.AI.AI.Clients
                 {
                     // Attach to any existing streamer
                     // - see tool call note below to understand.
-                    streamer = (StreamingResponse?)memory.GetValue("temp.streamer");
+                    streamer = CustomExtension.TryGetStreamer(memory);
                     if (streamer == null)
                     {
-                        // Create streamer and send initial message
-                        streamer = new StreamingResponse(context);
-                        memory.SetValue("temp.streamer", streamer);
-
-                        if (this._enableFeedbackLoop != null)
-                        {
-                            streamer.EnableFeedbackLoop = this._enableFeedbackLoop;
-
-                            if (streamer.EnableFeedbackLoop == true && this._feedbackLoopType != null)
-                            {
-                                streamer.FeedbackLoopType = this._feedbackLoopType;
-                            }
-                        }
-
-                        streamer.EnableGeneratedByAILabel = true;
-
-                        if (!string.IsNullOrEmpty(this._startStreamingMessage))
-                        {
-                            streamer.QueueInformativeUpdate(this._startStreamingMessage!);
-                        }
+                        // in case for CustomExtension.IsTextMessageActivity=false, where triggered by AdaptiveCard
+                        streamer = CustomExtension.GetOrCreateStreamerFromMemory(memory, args.TurnContext, enableFeedbackLoop: true, feedbackLoopType: null!, startStreamingMessage: "Initializing...", _logger);
                     }
                 }
             });
@@ -279,10 +260,11 @@ namespace Microsoft.Teams.AI.AI.Clients
                             response.Message = null;
                         }
 
-                        // End the stream and remove pointer from memory
-                        // - We're not listening for the response received event because we can't await the completion of events.
-                        await streamer.EndStream();
-                        memory.DeleteValue("temp.streamer");
+                        // EndStream is handled at Application. Following not needed.
+                        //x End the stream and remove pointer from memory
+                        //x - We're not listening for the response received event because we can't await the completion of events.
+                        //x await streamer.EndStream();
+                        //x memory.DeleteValue("temp.streamer");
                     }
                 }
 

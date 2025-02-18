@@ -1,5 +1,6 @@
 ﻿using Microsoft.Bot.Builder;
 using Microsoft.Bot.Schema;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.AI.Action;
 using Microsoft.Teams.AI.AI.Models;
 using Microsoft.Teams.AI.Exceptions;
@@ -34,6 +35,10 @@ namespace Microsoft.Teams.AI.Application
         /// Fluent interface for accessing the attachments.
         /// </summary>
         public List<Attachment>? Attachments { get; set; } = new();
+
+        public List<string> TextAttachments { get; private set; } = new();
+
+        public List<string> QuoteAttachment { get; private set; } = new();
 
         /// <summary>
         /// Sets the Feedback Loop in Teams that allows a user to give thumbs up or down to a response.
@@ -79,13 +84,16 @@ namespace Microsoft.Teams.AI.Application
         /// <returns>Number of updates sent so far.</returns>
         public int UpdatesSent() => this._nextSequence - 1;
 
+        private readonly ILogger _logger;
+
         /// <summary>
         /// Creates a new instance of the <see cref="StreamingResponse"/> class.
         /// </summary>
         /// <param name="context">Context for the current turn of conversation with the user.</param>
-        public StreamingResponse(ITurnContext context)
+        public StreamingResponse(ITurnContext context, ILogger logger)
         {
             this._context = context;
+            this._logger = logger;
         }
 
         /// <summary>
@@ -189,6 +197,13 @@ namespace Microsoft.Teams.AI.Application
             }
 
             this._ended = true;
+            if (string.IsNullOrWhiteSpace(Message)) // better to just cancel the response. If we can cancel, think about moving streaming response start to very beginning of app.
+            {
+                this.EnableFeedbackLoop = false;
+                this.EnableGeneratedByAILabel = false;
+                Message = "\u200B";
+            }
+
             QueueNextChunk();
 
             // Wait for the queue to drain
@@ -233,14 +248,36 @@ namespace Microsoft.Teams.AI.Application
             QueueActivity(() =>
             {
                 this._chunkQueued = false;
+                const string Break = "\r\n";
 
                 if (this._ended)
                 {
+                    var message = Message;
+                    if (QuoteAttachment.Count > 0)
+                    {
+                        var attachmentText = "> " + string.Join(Break, QuoteAttachment).Replace(Environment.NewLine, Break + "<br/>");
+                        message += Break + Break + "---" + Break + attachmentText;
+                    }
+
+                    if (TextAttachments.Count > 0)
+                    {
+                        foreach (var attachment in TextAttachments)
+                        {
+                            if (!string.IsNullOrWhiteSpace(attachment))
+                            {
+                                var attachmentText = attachment;
+                                message += Break + Break + "---" + Break + attachmentText;
+                            }
+                        }
+                    }
+
+                    this._logger?.LogInformation("FINAL_STREAM_RESPONSE: Message:{Message}; ChunkCount:{ChunkCount};", message, this._nextSequence);
                     // Send final message
                     Activity activity = new Activity
                     {
                         Type = ActivityTypes.Message,
-                        Text = Message,
+                        TextFormat = TextFormatTypes.Markdown,
+                        Text = message,
                         ChannelData = new StreamingChannelData
                         {
                             StreamType = StreamType.Final,
@@ -347,12 +384,12 @@ namespace Microsoft.Teams.AI.Application
             {
                 // Add in feedback loop
                 StreamingChannelData currChannelData = activity.GetChannelData<StreamingChannelData>();
-                
+
                 if (EnableFeedbackLoop == true)
                 {
                     currChannelData.feedbackLoopEnabled = true;
                     currChannelData.feedbackLoopType = FeedbackLoopType;
-                } 
+                }
                 else
                 {
                     currChannelData.feedbackLoopEnabled = false;

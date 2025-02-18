@@ -208,6 +208,13 @@ namespace Microsoft.Teams.AI.AI
             Verify.ParamNotNull(turnContext);
             Verify.ParamNotNull(turnState);
 
+            var streamer = CustomExtension.TryGetStreamer(turnState);
+
+            if (stepCount == 0)
+            {
+                streamer?.QueueInformativeUpdate("Thinking on the next action...");
+            }
+
             // Initialize start time
             startTime = startTime ?? DateTime.UtcNow;
             Plan? plan = null;
@@ -245,6 +252,16 @@ namespace Microsoft.Teams.AI.AI
             // - If the plan ends on a SAY command then the plan is considered complete, otherwise we'll loop
             bool completed = true;
             bool shouldLoop = false;
+
+            if (plan.Commands.Count >= 1)
+            {
+                var doCommands = plan.Commands.Select(c => c as PredictedDoCommand).Where(c => c != null).ToList();
+                if (doCommands.Count >= 1)
+                {
+                    streamer?.QueueInformativeUpdate($"Executing agent action{(doCommands.Count >= 2 ? "s" : "")}: {string.Join(",", doCommands.Select(c => c?.Action?.Split('_').FirstOrDefault()))}"); // split _ to ignore hash at end
+                }
+            }
+
             foreach (IPredictedCommand command in plan.Commands)
             {
                 // Check for timeout
@@ -298,9 +315,18 @@ namespace Microsoft.Teams.AI.AI
                 else if (command is PredictedSayCommand sayCommand)
                 {
                     shouldLoop = false;
-                    output = await this._actions[AIConstants.SayCommandActionName]
-                        .Handler
-                        .PerformActionAsync(turnContext, turnState, sayCommand, AIConstants.SayCommandActionName, cancellationToken);
+                    if (streamer == null)
+                    {
+                        output = await this._actions[AIConstants.SayCommandActionName]
+                            .Handler
+                            .PerformActionAsync(turnContext, turnState, sayCommand, AIConstants.SayCommandActionName, cancellationToken);
+                    }
+                    else
+                    {
+                        string content = sayCommand.Response.GetContent<string>();
+                        streamer.QueueTextChunk(content);
+                        output = AIConstants.StopCommand;
+                    }
                 }
                 else
                 {

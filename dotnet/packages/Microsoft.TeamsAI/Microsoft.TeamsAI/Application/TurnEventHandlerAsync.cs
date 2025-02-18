@@ -21,4 +21,15 @@ namespace Microsoft.Teams.AI
     /// or threads to receive notice of cancellation.</param>
     /// <returns>True to continue execution of the current turn. Otherwise, False.</returns>
     public delegate Task<bool> TurnEventHandlerAsync<TState>(ITurnContext turnContext, TState turnState, CancellationToken cancellationToken) where TState : TurnState;
+
+    /// <summary>
+    /// Turn event handler to process exceptions.
+    /// </summary>
+    /// <typeparam name="TState"></typeparam>
+    /// <param name="turnContext"></param>
+    /// <param name="turnState"></param>
+    /// <param name="ex"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns>if true, we don't throw exception for turn. Handle gracefully</returns>
+    public delegate Task<bool> TurnErrorEventHandlerAsync<TState>(ITurnContext turnContext, TState turnState, Exception ex, CancellationToken cancellationToken) where TState : TurnState;
 }

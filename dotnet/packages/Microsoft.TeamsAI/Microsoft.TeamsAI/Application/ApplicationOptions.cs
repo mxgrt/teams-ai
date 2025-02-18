@@ -94,5 +94,13 @@ namespace Microsoft.Teams.AI
         /// Optional. Options used to enable authentication for the application.
         /// </summary>
         public AuthenticationOptions<TState>? Authentication { get; set; }
+
+        public bool EnableFeedbackLoop { get; set; } = true;
+
+        public bool Stream { get; set; } = true;
+
+        public string StartStreamingMessage { get; set; } = null!;
+
+        public int AutoResendActivityAfterSignInTimeoutInSeconds { get; set; } = -1;
     }
 }

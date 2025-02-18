@@ -320,7 +320,7 @@ namespace Microsoft.Teams.AI.AI.Models
                         // Signal chunk received
                         if (_options.LogRequests!.Value)
                         {
-                            _logger.LogTrace("CHUNK", delta);
+                            //_logger.LogTrace("CHUNK", delta);
                         }
 
                         Events!.OnChunkReceived(args);

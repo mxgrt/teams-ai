@@ -43,8 +43,10 @@ namespace Microsoft.Teams.AI
         private readonly ConcurrentQueue<Route<TState>> _invokeRoutes;
         private readonly ConcurrentQueue<Route<TState>> _routes;
 
+        private readonly ConcurrentQueue<TurnEventHandlerAsync<TState>> _beforeAuth;
         private readonly ConcurrentQueue<TurnEventHandlerAsync<TState>> _beforeTurn;
         private readonly ConcurrentQueue<TurnEventHandlerAsync<TState>> _afterTurn;
+        private readonly ConcurrentQueue<TurnErrorEventHandlerAsync<TState>> _turnErrorHandlers;
 
         private readonly SelectorAsync? _startSignIn;
 
@@ -86,8 +88,10 @@ namespace Microsoft.Teams.AI
 
             _routes = new ConcurrentQueue<Route<TState>>();
             _invokeRoutes = new ConcurrentQueue<Route<TState>>();
+            _beforeAuth = new ConcurrentQueue<TurnEventHandlerAsync<TState>>();
             _beforeTurn = new ConcurrentQueue<TurnEventHandlerAsync<TState>>();
             _afterTurn = new ConcurrentQueue<TurnEventHandlerAsync<TState>>();
+            _turnErrorHandlers = new ConcurrentQueue<TurnErrorEventHandlerAsync<TState>>();
 
             if (options.Authentication != null)
             {
@@ -309,63 +313,63 @@ namespace Microsoft.Teams.AI
                 case ConversationUpdateEvents.ChannelDeleted:
                 case ConversationUpdateEvents.ChannelRenamed:
                 case ConversationUpdateEvents.ChannelRestored:
-                {
-                    routeSelector = (context, _) => Task.FromResult
-                    (
-                        string.Equals(context.Activity?.ChannelId, Channels.Msteams)
-                        && string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
-                        && string.Equals(context.Activity?.GetChannelData<TeamsChannelData>()?.EventType, conversationUpdateEvent)
-                        && context.Activity?.GetChannelData<TeamsChannelData>()?.Channel != null
-                        && context.Activity?.GetChannelData<TeamsChannelData>()?.Team != null
-                    );
-                    break;
-                }
+                    {
+                        routeSelector = (context, _) => Task.FromResult
+                        (
+                            string.Equals(context.Activity?.ChannelId, Channels.Msteams)
+                            && string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(context.Activity?.GetChannelData<TeamsChannelData>()?.EventType, conversationUpdateEvent)
+                            && context.Activity?.GetChannelData<TeamsChannelData>()?.Channel != null
+                            && context.Activity?.GetChannelData<TeamsChannelData>()?.Team != null
+                        );
+                        break;
+                    }
                 case ConversationUpdateEvents.MembersAdded:
-                {
-                    routeSelector = (context, _) => Task.FromResult
-                    (
-                        string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
-                        && context.Activity?.MembersAdded != null
-                        && context.Activity.MembersAdded.Count > 0
-                    );
-                    break;
-                }
+                    {
+                        routeSelector = (context, _) => Task.FromResult
+                        (
+                            string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
+                            && context.Activity?.MembersAdded != null
+                            && context.Activity.MembersAdded.Count > 0
+                        );
+                        break;
+                    }
                 case ConversationUpdateEvents.MembersRemoved:
-                {
-                    routeSelector = (context, _) => Task.FromResult
-                    (
-                        string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
-                        && context.Activity?.MembersRemoved != null
-                        && context.Activity.MembersRemoved.Count > 0
-                    );
-                    break;
-                }
+                    {
+                        routeSelector = (context, _) => Task.FromResult
+                        (
+                            string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
+                            && context.Activity?.MembersRemoved != null
+                            && context.Activity.MembersRemoved.Count > 0
+                        );
+                        break;
+                    }
                 case ConversationUpdateEvents.TeamRenamed:
                 case ConversationUpdateEvents.TeamDeleted:
                 case ConversationUpdateEvents.TeamHardDeleted:
                 case ConversationUpdateEvents.TeamArchived:
                 case ConversationUpdateEvents.TeamUnarchived:
                 case ConversationUpdateEvents.TeamRestored:
-                {
-                    routeSelector = (context, _) => Task.FromResult
-                    (
-                        string.Equals(context.Activity?.ChannelId, Channels.Msteams)
-                        && string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
-                        && string.Equals(context.Activity?.GetChannelData<TeamsChannelData>()?.EventType, conversationUpdateEvent)
-                        && context.Activity?.GetChannelData<TeamsChannelData>()?.Team != null
-                    );
-                    break;
-                }
+                    {
+                        routeSelector = (context, _) => Task.FromResult
+                        (
+                            string.Equals(context.Activity?.ChannelId, Channels.Msteams)
+                            && string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(context.Activity?.GetChannelData<TeamsChannelData>()?.EventType, conversationUpdateEvent)
+                            && context.Activity?.GetChannelData<TeamsChannelData>()?.Team != null
+                        );
+                        break;
+                    }
                 default:
-                {
-                    routeSelector = (context, _) => Task.FromResult
-                    (
-                        string.Equals(context.Activity?.ChannelId, Channels.Msteams)
-                        && string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
-                        && string.Equals(context.Activity?.GetChannelData<TeamsChannelData>()?.EventType, conversationUpdateEvent)
-                    );
-                    break;
-                }
+                    {
+                        routeSelector = (context, _) => Task.FromResult
+                        (
+                            string.Equals(context.Activity?.ChannelId, Channels.Msteams)
+                            && string.Equals(context.Activity?.Type, ActivityTypes.ConversationUpdate, StringComparison.OrdinalIgnoreCase)
+                            && string.Equals(context.Activity?.GetChannelData<TeamsChannelData>()?.EventType, conversationUpdateEvent)
+                        );
+                        break;
+                    }
             }
             AddRoute(routeSelector, handler, isInvokeRoute: false);
             return this;
@@ -675,14 +679,15 @@ namespace Microsoft.Teams.AI
                     {
                         Value = response.TaskInfo
                     };
-                } else
+                }
+                else
                 {
                     result.Task = new TaskModuleMessageResponse()
                     {
                         Value = response.Message ?? string.Empty
                     };
                 }
-                
+
 
                 Activity activity = ActivityUtilities.CreateInvokeResponseActivity(response);
                 await turnContext.SendActivityAsync(activity, cancellationToken);
@@ -863,6 +868,13 @@ namespace Microsoft.Teams.AI
             return this;
         }
 
+        public Application<TState> OnBeforeAuth(TurnEventHandlerAsync<TState> handler)
+        {
+            Verify.ParamNotNull(handler);
+            _beforeAuth.Enqueue(handler);
+            return this;
+        }
+
         /// <summary>
         /// Add a handler that will execute before the turn's activity handler logic is processed.
         /// <br/>
@@ -893,6 +905,13 @@ namespace Microsoft.Teams.AI
         {
             Verify.ParamNotNull(handler);
             _afterTurn.Enqueue(handler);
+            return this;
+        }
+
+        public Application<TState> OnError(TurnErrorEventHandlerAsync<TState> handler)
+        {
+            Verify.ParamNotNull(handler);
+            _turnErrorHandlers.Enqueue(handler);
             return this;
         }
 
@@ -970,6 +989,9 @@ namespace Microsoft.Teams.AI
         /// </summary>
         private async Task _OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken = default)
         {
+            StreamingResponse streamer = null!;
+            TState turnState = null!;
+            IStorage? storage = null;
             try
             {
                 // Start typing timer if configured
@@ -985,10 +1007,24 @@ namespace Microsoft.Teams.AI
                 }
 
                 // Load turn state
-                TState turnState = Options.TurnStateFactory!();
-                IStorage? storage = Options.Storage;
+                turnState = Options.TurnStateFactory!();
+                storage = Options.Storage;
 
                 await turnState!.LoadStateAsync(storage, turnContext);
+
+                // Call before turn handler
+                foreach (TurnEventHandlerAsync<TState> beforeAuthHandler in _beforeAuth)
+                {
+                    if (!await beforeAuthHandler(turnContext, turnState, cancellationToken))
+                    {
+                        // Save turn state
+                        // - This lets the bot keep track of why it ended the previous turn. It also
+                        //   allows the dialog system to be used before the AI system is called.
+                        await turnState!.SaveStateAsync(turnContext, storage);
+
+                        return;
+                    }
+                }
 
                 // If user is in sign in flow, return the authentication setting name
                 string? settingName = AuthUtilities.UserInSignInFlow(turnState);
@@ -1016,7 +1052,29 @@ namespace Microsoft.Teams.AI
                     {
                         // Requires user action, save state and stop processing current activity
                         await turnState.SaveStateAsync(turnContext, storage);
-                        return;
+                        if (Options.AutoResendActivityAfterSignInTimeoutInSeconds <= 0)
+                        {
+                            return;
+                        }
+
+                        // if configured, wait for auth to complete
+                        bool authDone = false;
+                        var watch = System.Diagnostics.Stopwatch.StartNew();
+                        while (watch.Elapsed.TotalSeconds <= Options.AutoResendActivityAfterSignInTimeoutInSeconds) // hardcoded for now
+                        {
+                            if (turnContext.IsUserAuthenticationSuccessful())
+                            {
+                                authDone = true;
+                                break;
+                            }
+
+                            await Task.Delay(1000);
+                        }
+
+                        if (!authDone)
+                        {
+                            return;
+                        }
                     }
 
                     if (response.Status == SignInStatus.Error && response.Cause != AuthExceptionReason.InvalidActivity)
@@ -1089,6 +1147,13 @@ namespace Microsoft.Teams.AI
                     }
                 }
 
+                if (!eventHandlerCalled
+                    && this.Options.Stream
+                    && CustomExtension.IsTextMessageActivity(turnContext))
+                {
+                    streamer = CustomExtension.GetOrCreateStreamerFromMemory(turnState, turnContext, this.Options.EnableFeedbackLoop, feedbackLoopType: null!, this.Options.StartStreamingMessage, this.Options?.LoggerFactory?.CreateLogger(nameof(StreamingResponse))!);
+                }
+
                 if (!eventHandlerCalled && _ai != null && ActivityTypes.Message.Equals(turnContext.Activity.Type, StringComparison.OrdinalIgnoreCase) && turnContext.Activity.Text != null)
                 {
                     // Begin a new chain of AI calls
@@ -1103,13 +1168,43 @@ namespace Microsoft.Teams.AI
                         return;
                     }
                 }
-                await turnState!.SaveStateAsync(turnContext, storage);
+            }
+            catch (Exception ex)
+            {
+                streamer?.QueueInformativeUpdate("An exception occurred during agent execution...");
 
+                // Call after exception
+                bool handleException = false;
+                foreach (TurnErrorEventHandlerAsync<TState> errorHandler in _turnErrorHandlers)
+                {
+                    if (await errorHandler(turnContext, turnState, ex, cancellationToken))
+                    {
+                        handleException = true;
+                        break;
+                    }
+                }
+
+                if (!handleException)
+                {
+                    throw;
+                }
             }
             finally
             {
                 // Stop the timer if configured
                 StopTypingTimer();
+
+                if (streamer != null)
+                {
+                    await CustomExtension.EndStreamAsync(streamer, turnState);
+                }
+            }
+
+            if (turnState != null && storage != null)
+            {
+                // [_turnErrorHandlers, streamer.EndStream] may need state, hence this after
+                // no need to save state for unhandled exception, so not in finally block
+                await turnState.SaveStateAsync(turnContext, storage);
             }
         }
 
