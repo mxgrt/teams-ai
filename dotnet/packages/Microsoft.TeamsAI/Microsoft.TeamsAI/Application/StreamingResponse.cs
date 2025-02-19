@@ -204,10 +204,18 @@ namespace Microsoft.Teams.AI.Application
                 Message = "\u200B";
             }
 
-            QueueNextChunk();
+            try
+            {
+                QueueNextChunk();
 
-            // Wait for the queue to drain
-            return WaitForQueue()!;
+                // Wait for the queue to drain
+                return WaitForQueue()!;
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogWarning(ex, "Exception in StreamingResponse.EndStream");
+                return Task.CompletedTask;
+            }
         }
 
         /// <summary>
