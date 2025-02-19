@@ -107,6 +107,10 @@ namespace Microsoft.Teams.AI
 
                         await SendInvokeResponseAsync(context, HttpStatusCode.OK, null, cancellationToken).ConfigureAwait(false);
                     }
+                    catch (MsalClaimsChallengeException mccex) when (mccex.Message.Contains("blocked because they are not a direct member of a group with access"))
+                    {
+                        throw new UnauthorizedAccessException("Access Denied: Please ensure you are added to the appropriate security group by contacting your Copilot Administrators.", mccex);
+                    }
                     catch (MsalUiRequiredException) // Need user interaction
                     {
                         string warningMsg = "The bot is unable to exchange token. Ask for user consent first.";
