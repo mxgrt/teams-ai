@@ -12,9 +12,16 @@ public static class CustomExtension
 
     public static void SetUserAuthenticationStatusAsSucceeded(this ITurnContext turnContext) // this works only for process within same machine, some issue with using turnState.Conversations on LOCAL to test.
     {
-        if (!globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
+        lock (globalStateDict)
         {
-            globalStateDict.Add(turnContext.Activity.Conversation.Id, DateTime.UtcNow);
+            if (!globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
+            {
+                try
+                {
+                    globalStateDict.Add(turnContext.Activity.Conversation.Id, DateTime.UtcNow);
+                }
+                catch { }
+            }
         }
     }
 
@@ -23,7 +30,14 @@ public static class CustomExtension
         if (globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
         {
             var insertedTime = globalStateDict[turnContext.Activity.Conversation.Id];
-            globalStateDict.Remove(turnContext.Activity.Conversation.Id);
+            lock (globalStateDict)
+            {
+                try
+                {
+                    globalStateDict.Remove(turnContext.Activity.Conversation.Id);
+                }
+                catch { }
+            }
             return insertedTime > DateTime.UtcNow.AddMinutes(-5); // expire after 5 minutes
         }
         return false;
