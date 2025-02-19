@@ -1,5 +1,4 @@
-﻿using AdaptiveCards;
-using Microsoft.Bot.Builder;
+﻿using Microsoft.Bot.Builder;
 using Microsoft.Bot.Schema;
 using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.Application;
@@ -9,19 +8,23 @@ namespace Microsoft.Teams.AI;
 
 public static class CustomExtension
 {
-    private static readonly HashSet<string> globalStateDict = new HashSet<string>();
+    private static readonly Dictionary<string, DateTime> globalStateDict = new Dictionary<string, DateTime>();
 
     public static void SetUserAuthenticationStatusAsSucceeded(this ITurnContext turnContext) // this works only for process within same machine, some issue with using turnState.Conversations on LOCAL to test.
     {
-        globalStateDict.Add(turnContext.Activity.Conversation.Id);
+        if (!globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
+        {
+            globalStateDict.Add(turnContext.Activity.Conversation.Id, DateTime.UtcNow);
+        }
     }
 
     internal static bool IsUserAuthenticationSuccessful(this ITurnContext turnContext)
     {
-        if (globalStateDict.Contains(turnContext.Activity.Conversation.Id))
+        if (globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
         {
+            var insertedTime = globalStateDict[turnContext.Activity.Conversation.Id];
             globalStateDict.Remove(turnContext.Activity.Conversation.Id);
-            return true;
+            return insertedTime > DateTime.UtcNow.AddMinutes(-5); // expire after 5 minutes
         }
         return false;
     }
