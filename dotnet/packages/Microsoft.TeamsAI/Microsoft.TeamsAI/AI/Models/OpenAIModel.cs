@@ -352,17 +352,13 @@ namespace Microsoft.Teams.AI.AI.Models
                     chatCompletionsResponse = await _openAIClient.GetChatClient(model).CompleteChatAsync(chatMessages, chatCompletionOptions, cancellationToken);
                     rawResponse = chatCompletionsResponse.GetRawResponse();
                     promptResponse.Message = new ChatMessage(chatCompletionsResponse.Value);
-
-                    if (_options.LogRequests!.Value)
-                    {
-                        _logger.LogTrace("LLM RESPONSE: {LLM_RESPONSE}", chatCompletionsResponse.Value);
-                    }
                 }
 
                 promptResponse.Status = PromptResponseStatus.Success;
             }
             catch (ClientResultException e)
             {
+                _logger.LogError(e, "Exception occurred in OpenAIModel");
                 rawResponse = e.GetRawResponse();
                 HttpOperationException httpOperationException = new(e);
                 if (httpOperationException.StatusCode == (HttpStatusCode)429)
@@ -383,7 +379,7 @@ namespace Microsoft.Teams.AI.AI.Models
                 _logger.LogTrace($"duration {(DateTime.UtcNow - startTime).TotalMilliseconds} ms");
                 if (promptResponse.Status == PromptResponseStatus.Success && chatCompletionsResponse != null)
                 {
-                    _logger.LogTrace(JsonSerializer.Serialize(chatCompletionsResponse.Value, _serializerOptions));
+                    _logger.LogTrace("LLM_RESPONSE:{LLM_RESPONSE}", chatCompletionsResponse.Value);
                 }
 
                 if (rawResponse != null)
