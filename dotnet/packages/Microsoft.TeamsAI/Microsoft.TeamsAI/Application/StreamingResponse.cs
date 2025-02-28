@@ -333,7 +333,7 @@ namespace Microsoft.Teams.AI.Application
             }
             catch (Exception ex)
             {
-                throw ex;
+                _logger.LogError(ex, "Exception at DrainQueue");
             }
         }
 
