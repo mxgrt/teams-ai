@@ -79,6 +79,8 @@ namespace Microsoft.Teams.AI
         /// </summary>
         public bool StartTypingTimer { get; set; } = true;
 
+        public bool StopTypingTimerOnFirstResponse { get; set; } = true;
+
         /// <summary>
         /// Optional. If true, the bot supports long running messages that can take longer then the 10 - 15
         /// second timeout imposed by most channels. Defaults to false.

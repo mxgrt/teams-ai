@@ -17,6 +17,8 @@ namespace Microsoft.Teams.AI
         /// </summary>
         private readonly int _interval;
 
+        private readonly bool _stopTypingTimerOnFirstResponse;
+
         /// <summary>
         /// To detect redundant calls
         /// </summary>
@@ -31,9 +33,10 @@ namespace Microsoft.Teams.AI
         /// Constructs a new instance of the <see cref="TypingTimer"/> class.
         /// </summary>
         /// <param name="interval">The interval in milliseconds to send "typing" activity.</param>
-        public TypingTimer(int interval = 1000)
+        public TypingTimer(int interval = 1000, bool stopTypingTimerOnFirstResponse = true)
         {
             _interval = interval;
+            _stopTypingTimerOnFirstResponse = stopTypingTimerOnFirstResponse;
         }
 
         /// <summary>
@@ -55,7 +58,10 @@ namespace Microsoft.Teams.AI
             }
 
             // Listen for outgoing activities
-            turnContext.OnSendActivities(StopTimerWhenSendMessageActivityHandlerAsync);
+            if (_stopTypingTimerOnFirstResponse)
+            {
+                turnContext.OnSendActivities(StopTimerWhenSendMessageActivityHandlerAsync);
+            }
 
             // Start periodically send "typing" activity
             _timer = new Timer(SendTypingActivity, turnContext, Timeout.Infinite, Timeout.Infinite);

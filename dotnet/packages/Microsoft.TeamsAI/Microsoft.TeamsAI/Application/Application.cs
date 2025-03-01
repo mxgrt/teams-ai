@@ -962,7 +962,7 @@ namespace Microsoft.Teams.AI
 
             if (_typingTimer == null)
             {
-                _typingTimer = new TypingTimer(_typingTimerDelay);
+                _typingTimer = new TypingTimer(_typingTimerDelay, Options.StopTypingTimerOnFirstResponse);
             }
 
             if (!_typingTimer.IsRunning())
