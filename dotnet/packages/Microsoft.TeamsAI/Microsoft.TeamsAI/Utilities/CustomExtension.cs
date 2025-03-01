@@ -91,4 +91,7 @@ public static class CustomExtension
 
         return streamer;
     }
+
+    public static string GetConversationHistorySectionVariableName(string promptName)
+        => $"conversation.{promptName}_history"; // name is assumed from PromptManager.GetPrompt code. VariableName could change. Asserted via InvalidOperationException below.
 }
