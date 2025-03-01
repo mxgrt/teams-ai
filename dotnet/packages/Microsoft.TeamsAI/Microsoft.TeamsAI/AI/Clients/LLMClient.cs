@@ -346,10 +346,11 @@ namespace Microsoft.Teams.AI.AI.Clients
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Exception in LLMClient");
                 return new()
                 {
                     Status = PromptResponseStatus.Error,
-                    Error = new(ex.Message ?? string.Empty)
+                    Error = new(ex.ToString() ?? string.Empty)
                 };
             }
             finally
