@@ -17,6 +17,7 @@ namespace Microsoft.Teams.AI.AI.Models
         protected override TimeSpan GetNextDelay(PipelineMessage message, int tryCount)
         {
             int index = tryCount - 1;
+            if (index < 0) { index = 0; }
             return index >= _delays.Count ? _delays[_delays.Count - 1] : _delays[index];
         }
     }
