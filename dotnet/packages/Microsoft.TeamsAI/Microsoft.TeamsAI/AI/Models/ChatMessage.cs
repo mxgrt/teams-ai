@@ -5,6 +5,7 @@ using Microsoft.Teams.AI.Utilities;
 using Microsoft.Teams.AI.Utilities.JsonConverters;
 using OpenAI.Chat;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using OAI = OpenAI;
 
@@ -377,7 +378,7 @@ namespace Microsoft.Teams.AI.AI.Models
         /// Used to create the object when deserializing.
         /// </summary>
         [JsonConstructor]
-        internal ActionCall() {}
+        internal ActionCall() { }
 
         /// <summary>
         /// Creates an instance of <see cref="ActionCall"/> from <see cref="ChatToolCall"/>
@@ -390,7 +391,7 @@ namespace Microsoft.Teams.AI.AI.Models
             {
                 throw new TeamsAIException($"Invalid ActionCall type: {toolCall.GetType().Name}");
             }
-            
+
             Id = toolCall.Id;
             Function = new ActionFunction(toolCall.FunctionName, toolCall.FunctionArguments.ToString());
         }
@@ -408,7 +409,17 @@ namespace Microsoft.Teams.AI.AI.Models
             }
 
             Id = toolCall.ToolCallId;
-            Function = new ActionFunction(toolCall.FunctionName, toolCall.FunctionArgumentsUpdate.ToString());
+            string actionArgs = "{}"; // empty serialized Dictionary<string, object>
+            try
+            {
+                actionArgs = toolCall.FunctionArgumentsUpdate.ToString();
+            }
+            catch (ArgumentNullException ex) when (ex.Message == "Value cannot be null. (Parameter 'bytes')") // for empty parameters, we receive this
+            {
+                actionArgs = JsonSerializer.Serialize(new Dictionary<string, object>());
+            }
+
+            Function = new ActionFunction(toolCall.FunctionName, actionArgs!);
         }
 
         internal ChatToolCall ToChatToolCall()
