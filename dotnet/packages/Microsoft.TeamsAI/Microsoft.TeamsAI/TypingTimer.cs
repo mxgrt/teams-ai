@@ -129,7 +129,7 @@ namespace Microsoft.Teams.AI
             {
                 foreach (Activity activity in activities)
                 {
-                    if (activity.Type == ActivityTypes.Message || activity.GetChannelData<StreamingChannelData>()?.StreamType != null)
+                    if (activity.Type == ActivityTypes.Message && activity.GetChannelData<StreamingChannelData>()?.StreamType == StreamType.Final)
                     {
                         await _lastSend;
                         Dispose();
