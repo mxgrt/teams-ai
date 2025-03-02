@@ -134,7 +134,7 @@ namespace Microsoft.Teams.AI.AI.Prompts
                 if (template.Configuration.Completion.IncludeHistory)
                 {
                     template.Prompt.AddSection(new ConversationHistorySection(
-                        $"conversation.{name}_history",
+                        CustomExtension.GetConversationHistorySectionVariableName(name),
                         this.Options.MaxConversationHistoryTokens
                     ));
                 }
