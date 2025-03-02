@@ -81,6 +81,9 @@ namespace Microsoft.Teams.AI.AI.Prompts.Sections
             }
 
             List<string> output = renderedSections.Select(r => r.Output).ToList();
+
+            output = PostProcessTextOutput?.Invoke(output) ?? output;
+
             string text = string.Join(this.Separator, output);
 
             return new(text, length, length > maxTokens);
@@ -128,7 +131,13 @@ namespace Microsoft.Teams.AI.AI.Prompts.Sections
                 output.AddRange(rendered.Output);
             }
 
+            output = PostProcessMessagesOutput?.Invoke(output) ?? output;
+
             return new(output, length, length > maxTokens);
         }
+
+        public Func<List<string>, List<string>> PostProcessTextOutput = null;
+
+        public Func<List<ChatMessage>, List<ChatMessage>> PostProcessMessagesOutput = null;
     }
 }
