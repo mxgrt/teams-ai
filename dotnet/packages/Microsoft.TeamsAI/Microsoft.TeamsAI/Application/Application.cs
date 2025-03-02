@@ -37,7 +37,7 @@ namespace Microsoft.Teams.AI
         private readonly BotAdapter? _adapter;
         private readonly AuthenticationManager<TState>? _authentication;
 
-        private readonly int _typingTimerDelay = 1000;
+        private readonly int _typingTimerDelay = 2500;
         private TypingTimer? _typingTimer;
 
         private readonly ConcurrentQueue<Route<TState>> _invokeRoutes;
@@ -998,7 +998,7 @@ namespace Microsoft.Teams.AI
                 if (Options.StartTypingTimer)
                 {
                     StartTypingTimer(turnContext);
-                };
+                }
 
                 // Remove @mentions
                 if (Options.RemoveRecipientMention && ActivityTypes.Message.Equals(turnContext.Activity.Type, StringComparison.OrdinalIgnoreCase))

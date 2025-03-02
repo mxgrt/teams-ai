@@ -22,6 +22,7 @@ namespace Microsoft.Teams.AI.Application
     /// </summary>
     public class StreamingResponse
     {
+        private const string EmptyResponse = "\u200B";
         private readonly ITurnContext _context;
         private int _nextSequence = 1;
         private bool _ended = false;
@@ -35,10 +36,6 @@ namespace Microsoft.Teams.AI.Application
         /// Fluent interface for accessing the attachments.
         /// </summary>
         public List<Attachment>? Attachments { get; set; } = new();
-
-        public List<string> TextAttachments { get; private set; } = new();
-
-        public List<string> QuoteAttachment { get; private set; } = new();
 
         /// <summary>
         /// Sets the Feedback Loop in Teams that allows a user to give thumbs up or down to a response.
@@ -83,6 +80,19 @@ namespace Microsoft.Teams.AI.Application
         /// </summary>
         /// <returns>Number of updates sent so far.</returns>
         public int UpdatesSent() => this._nextSequence - 1;
+
+        /// <summary>
+        /// OnBeforeFinalActivity gets called before final Activity is constructed. It can be used to transform the final Activity content. 
+        /// Parameters: StreamingResponse
+        /// Returns: newActivity(Activity)
+        /// </summary>
+        public Func<StreamingResponse, Task<Activity>> OnBeforeFinalActivityAsync = null!;
+
+        /// <summary>
+        /// OnAfterFinalActivity gets called after final Activity is sent via TurnContext. It can be used to update/delete the final activity via activityId. 
+        /// Parameters: StreamingResponse, ITurnContext, activityId(string)
+        /// </summary>
+        public Func<StreamingResponse, ITurnContext, string, Task> OnAfterFinalActivityAsync = null!;
 
         private readonly ILogger _logger;
 
@@ -201,7 +211,7 @@ namespace Microsoft.Teams.AI.Application
             {
                 this.EnableFeedbackLoop = false;
                 this.EnableGeneratedByAILabel = false;
-                Message = "\u200B";
+                Message = EmptyResponse;
             }
 
             try
@@ -256,36 +266,28 @@ namespace Microsoft.Teams.AI.Application
             QueueActivity(() =>
             {
                 this._chunkQueued = false;
-                const string Break = "\r\n";
 
                 if (this._ended)
                 {
-                    var message = Message;
-                    if (QuoteAttachment.Count > 0)
-                    {
-                        var attachmentText = "> " + string.Join(Break, QuoteAttachment).Replace(Environment.NewLine, Break + "<br/>");
-                        message += Break + Break + "---" + Break + attachmentText;
-                    }
+                    var customFinalActivity = (this.OnBeforeFinalActivityAsync?.Invoke(this) ?? Task.FromResult<Activity>(null!)).Result;
 
-                    if (TextAttachments.Count > 0)
+                    if (customFinalActivity != null)
                     {
-                        foreach (var attachment in TextAttachments)
+                        customFinalActivity.ChannelData = new StreamingChannelData
                         {
-                            if (!string.IsNullOrWhiteSpace(attachment))
-                            {
-                                var attachmentText = attachment;
-                                message += Break + Break + "---" + Break + attachmentText;
-                            }
-                        }
+                            StreamType = StreamType.Final
+                        };
+
+                        // Send final message (custom)
+                        return customFinalActivity;
                     }
 
-                    this._logger?.LogInformation("FINAL_STREAM_RESPONSE: Message:{Message}; ChunkCount:{ChunkCount};", message, this._nextSequence);
-                    // Send final message
+                    // Send final message (default)
                     Activity activity = new Activity
                     {
                         Type = ActivityTypes.Message,
                         TextFormat = TextFormatTypes.Markdown,
-                        Text = message,
+                        Text = this.Message,
                         ChannelData = new StreamingChannelData
                         {
                             StreamType = StreamType.Final,
@@ -345,6 +347,11 @@ namespace Microsoft.Teams.AI.Application
         /// <returns>A Task representing the async operation.</returns>
         private async Task SendActivity(Activity activity)
         {
+            if (this._ended && activity?.Type == ActivityTypes.Typing) // when ended, just process the last Message activity
+            {
+                return;
+            }
+
             // Set activity ID to the assigned stream ID
             if (!string.IsNullOrEmpty(StreamId))
             {
@@ -423,14 +430,27 @@ namespace Microsoft.Teams.AI.Application
                 }
             }
 
-            ResourceResponse response = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
-
-            await Task.Delay(TimeSpan.FromSeconds(1.5));
-
-            // Save assigned stream ID
-            if (string.IsNullOrEmpty(StreamId))
+            if (!this._ended)
             {
-                StreamId = response.Id;
+                ResourceResponse response = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
+
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+                // Save assigned stream ID
+                if (string.IsNullOrEmpty(StreamId))
+                {
+                    StreamId = response.Id;
+                }
+            }
+            else
+            {
+                activity.Id = this.StreamId ?? Guid.NewGuid().ToString(); // activity.Id is not returned in SendActivityAsync below, so setting one.
+
+                activity.ReplyToId = this._context.Activity.Id;
+
+                var _ = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
+
+                await (this.OnAfterFinalActivityAsync?.Invoke(this, this._context, this.StreamId!) ?? Task.CompletedTask);
             }
         }
     }
