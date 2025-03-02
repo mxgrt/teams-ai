@@ -1,5 +1,6 @@
 ﻿using Microsoft.Bot.Builder;
 using Microsoft.Bot.Schema;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.AI.Action;
 using Microsoft.Teams.AI.AI.Models;
 using Microsoft.Teams.AI.Exceptions;
@@ -21,6 +22,7 @@ namespace Microsoft.Teams.AI.Application
     /// </summary>
     public class StreamingResponse
     {
+        private const string EmptyResponse = "\u200B";
         private readonly ITurnContext _context;
         private int _nextSequence = 1;
         private bool _ended = false;
@@ -80,12 +82,28 @@ namespace Microsoft.Teams.AI.Application
         public int UpdatesSent() => this._nextSequence - 1;
 
         /// <summary>
+        /// OnBeforeFinalActivity gets called before final Activity is constructed. It can be used to transform the final Activity content. 
+        /// Parameters: StreamingResponse
+        /// Returns: newActivity(Activity)
+        /// </summary>
+        public Func<StreamingResponse, Task<Activity>> OnBeforeFinalActivityAsync = null!;
+
+        /// <summary>
+        /// OnAfterFinalActivity gets called after final Activity is sent via TurnContext. It can be used to update/delete the final activity via activityId. 
+        /// Parameters: StreamingResponse, ITurnContext, activityId(string)
+        /// </summary>
+        public Func<StreamingResponse, ITurnContext, string, Task> OnAfterFinalActivityAsync = null!;
+
+        private readonly ILogger _logger;
+
+        /// <summary>
         /// Creates a new instance of the <see cref="StreamingResponse"/> class.
         /// </summary>
         /// <param name="context">Context for the current turn of conversation with the user.</param>
-        public StreamingResponse(ITurnContext context)
+        public StreamingResponse(ITurnContext context, ILogger logger)
         {
             this._context = context;
+            this._logger = logger;
         }
 
         /// <summary>
@@ -189,10 +207,25 @@ namespace Microsoft.Teams.AI.Application
             }
 
             this._ended = true;
-            QueueNextChunk();
+            if (string.IsNullOrWhiteSpace(Message)) // better to just cancel the response. If we can cancel, think about moving streaming response start to very beginning of app.
+            {
+                this.EnableFeedbackLoop = false;
+                this.EnableGeneratedByAILabel = false;
+                Message = EmptyResponse;
+            }
 
-            // Wait for the queue to drain
-            return WaitForQueue()!;
+            try
+            {
+                QueueNextChunk();
+
+                // Wait for the queue to drain
+                return WaitForQueue()!;
+            }
+            catch (Exception ex)
+            {
+                this._logger.LogWarning(ex, "Exception in StreamingResponse.EndStream");
+                return Task.CompletedTask;
+            }
         }
 
         /// <summary>
@@ -236,11 +269,25 @@ namespace Microsoft.Teams.AI.Application
 
                 if (this._ended)
                 {
-                    // Send final message
+                    var customFinalActivity = (this.OnBeforeFinalActivityAsync?.Invoke(this) ?? Task.FromResult<Activity>(null!)).Result;
+
+                    if (customFinalActivity != null)
+                    {
+                        customFinalActivity.ChannelData = new StreamingChannelData
+                        {
+                            StreamType = StreamType.Final
+                        };
+
+                        // Send final message (custom)
+                        return customFinalActivity;
+                    }
+
+                    // Send final message (default)
                     Activity activity = new Activity
                     {
                         Type = ActivityTypes.Message,
-                        Text = Message,
+                        TextFormat = TextFormatTypes.Markdown,
+                        Text = this.Message,
                         ChannelData = new StreamingChannelData
                         {
                             StreamType = StreamType.Final,
@@ -288,7 +335,8 @@ namespace Microsoft.Teams.AI.Application
             }
             catch (Exception ex)
             {
-                throw ex;
+                _logger.LogError(ex, "Exception at DrainQueue");
+                throw;
             }
         }
 
@@ -299,6 +347,11 @@ namespace Microsoft.Teams.AI.Application
         /// <returns>A Task representing the async operation.</returns>
         private async Task SendActivity(Activity activity)
         {
+            if (this._ended && activity?.Type == ActivityTypes.Typing) // when ended, just process the last Message activity
+            {
+                return;
+            }
+
             // Set activity ID to the assigned stream ID
             if (!string.IsNullOrEmpty(StreamId))
             {
@@ -347,12 +400,12 @@ namespace Microsoft.Teams.AI.Application
             {
                 // Add in feedback loop
                 StreamingChannelData currChannelData = activity.GetChannelData<StreamingChannelData>();
-                
+
                 if (EnableFeedbackLoop == true)
                 {
                     currChannelData.feedbackLoopEnabled = true;
                     currChannelData.feedbackLoopType = FeedbackLoopType;
-                } 
+                }
                 else
                 {
                     currChannelData.feedbackLoopEnabled = false;
@@ -377,14 +430,27 @@ namespace Microsoft.Teams.AI.Application
                 }
             }
 
-            ResourceResponse response = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
-
-            await Task.Delay(TimeSpan.FromSeconds(1.5));
-
-            // Save assigned stream ID
-            if (string.IsNullOrEmpty(StreamId))
+            if (!this._ended)
             {
-                StreamId = response.Id;
+                ResourceResponse response = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
+
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
+
+                // Save assigned stream ID
+                if (string.IsNullOrEmpty(StreamId))
+                {
+                    StreamId = response.Id;
+                }
+            }
+            else
+            {
+                activity.Id = this.StreamId ?? Guid.NewGuid().ToString(); // activity.Id is not returned in SendActivityAsync below, so setting one.
+
+                activity.ReplyToId = this._context.Activity.Id;
+
+                var _ = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
+
+                await (this.OnAfterFinalActivityAsync?.Invoke(this, this._context, this.StreamId!) ?? Task.CompletedTask);
             }
         }
     }
