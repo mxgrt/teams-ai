@@ -320,7 +320,7 @@ namespace Microsoft.Teams.AI.AI.Models
                         // Signal chunk received
                         if (_options.LogRequests!.Value)
                         {
-                            _logger.LogTrace("CHUNK", delta);
+                            //_logger.LogTrace("CHUNK", delta);
                         }
 
                         Events!.OnChunkReceived(args);
@@ -356,6 +356,7 @@ namespace Microsoft.Teams.AI.AI.Models
             }
             catch (ClientResultException e)
             {
+                _logger.LogError(e, "Exception occurred in OpenAIModel");
                 rawResponse = e.GetRawResponse();
                 HttpOperationException httpOperationException = new(e);
                 if (httpOperationException.StatusCode == (HttpStatusCode)429)
@@ -376,7 +377,8 @@ namespace Microsoft.Teams.AI.AI.Models
                 _logger.LogTrace($"duration {(DateTime.UtcNow - startTime).TotalMilliseconds} ms");
                 if (promptResponse.Status == PromptResponseStatus.Success && chatCompletionsResponse != null)
                 {
-                    _logger.LogTrace(JsonSerializer.Serialize(chatCompletionsResponse.Value, _serializerOptions));
+                    //_logger.LogTrace(JsonSerializer.Serialize(chatCompletionsResponse.Value, _serializerOptions));
+                    _logger.LogTrace("LLM_RESPONSE:{LLM_RESPONSE}", chatCompletionsResponse.Value);
                 }
 
                 if (rawResponse != null)
