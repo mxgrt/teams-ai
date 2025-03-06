@@ -91,7 +91,7 @@ namespace Microsoft.Teams.AI.AI.Models
 
             OpenAIClientOptions openAIClientOptions = new()
             {
-                RetryPolicy = new SequentialDelayRetryPolicy(options.RetryPolicy, options.RetryPolicy.Count)
+                RetryPolicy = new SequentialDelayRetryPolicy(options.RetryPolicy, options.RetryPolicy.Count, logger: (options.LogRequests.Value ? _logger : null)!)
             };
 
             openAIClientOptions.AddPolicy(new AddHeaderRequestPolicy("User-Agent", _userAgent), PipelinePosition.PerCall);
@@ -138,7 +138,7 @@ namespace Microsoft.Teams.AI.AI.Models
 
             AzureOpenAIClientOptions azureOpenAIClientOptions = new(serviceVersion.Value)
             {
-                RetryPolicy = new SequentialDelayRetryPolicy(options.RetryPolicy, options.RetryPolicy.Count)
+                RetryPolicy = new SequentialDelayRetryPolicy(options.RetryPolicy, options.RetryPolicy.Count, logger: (options.LogRequests.Value ? _logger : null)!)
             };
 
             azureOpenAIClientOptions.AddPolicy(new AddHeaderRequestPolicy("User-Agent", _userAgent), PipelinePosition.PerCall);
