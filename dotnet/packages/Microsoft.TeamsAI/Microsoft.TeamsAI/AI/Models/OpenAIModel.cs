@@ -198,6 +198,7 @@ namespace Microsoft.Teams.AI.AI.Models
             // Get the model to use.
             string model = promptTemplate.Configuration.Completion.Model ?? _deploymentName;
             bool isO1Model = model.StartsWith("o1-");
+            bool isO3Model = model.StartsWith("o3-");
             bool useSystemMessages = !isO1Model && _options.UseSystemMessages.GetValueOrDefault(false);
             if (!useSystemMessages && prompt.Output.Count > 0 && prompt.Output[0].Role == ChatRole.System)
             {
@@ -227,7 +228,17 @@ namespace Microsoft.Teams.AI.AI.Models
                 chatCompletionOptions.Temperature = 1;
                 chatCompletionOptions.TopP = 1;
                 chatCompletionOptions.PresencePenalty = 0;
-            } else
+            }
+            else if (isO3Model)
+            {
+                chatCompletionOptions.MaxOutputTokenCount = completion.MaxTokens;
+                chatCompletionOptions.Temperature = 1;
+                chatCompletionOptions.TopP = 1;
+                chatCompletionOptions.PresencePenalty = 0;
+                chatCompletionOptions.AllowParallelToolCalls = null;
+                chatCompletionOptions.SetNewMaxCompletionTokensPropertyEnabled(newPropertyEnabled: true);
+            }
+            else
             {
                 // `MaxOutputTokenCount` is not supported for non-o1 Azure OpenAI models, hence it needs to be set for it to work.
                 SetMaxTokens(completion.MaxTokens, chatCompletionOptions);
@@ -238,7 +249,10 @@ namespace Microsoft.Teams.AI.AI.Models
             if (isToolsAugmentation)
             {
                 chatCompletionOptions.ToolChoice = completion.GetOpenAIChatToolChoice();
-                chatCompletionOptions.AllowParallelToolCalls = completion.ParallelToolCalls;
+                if (!isO3Model)
+                {
+                    chatCompletionOptions.AllowParallelToolCalls = completion.ParallelToolCalls;
+                }
 
                 if (promptTemplate.Actions.Count > 0)
                 {
@@ -347,10 +361,10 @@ namespace Microsoft.Teams.AI.AI.Models
                     }
                 }
                 else {
-                    chatCompletionsResponse = await _openAIClient.GetChatClient(model).CompleteChatAsync(chatMessages, chatCompletionOptions, cancellationToken);
-                    rawResponse = chatCompletionsResponse.GetRawResponse();
-                    promptResponse.Message = new ChatMessage(chatCompletionsResponse.Value);
-                }
+                        chatCompletionsResponse = await _openAIClient.GetChatClient(model).CompleteChatAsync(chatMessages, chatCompletionOptions, cancellationToken);
+                        rawResponse = chatCompletionsResponse.GetRawResponse();
+                        promptResponse.Message = new ChatMessage(chatCompletionsResponse.Value);
+                    }
 
                 promptResponse.Status = PromptResponseStatus.Success;
             }
@@ -466,6 +480,7 @@ namespace Microsoft.Teams.AI.AI.Models
                 "2024-06-01" => ServiceVersion.V2024_06_01,
                 "2024-08-01-preview" => ServiceVersion.V2024_08_01_Preview,
                 "2024-10-01-preview" => ServiceVersion.V2024_10_01_Preview,
+                "2025-01-01-preview" => ServiceVersion.V2025_01_01_Preview,
                 _ => null,
             };
         }
