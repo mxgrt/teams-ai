@@ -329,7 +329,14 @@ namespace Microsoft.Teams.AI.Application
                 {
                     // Get next activity from queue
                     Activity activity = _queue[0]();
-                    await SendActivity(activity).ConfigureAwait(false);
+                    try
+                    {
+                        await SendActivity(activity).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "An exception at DrainQueue");
+                    }
                     _queue.RemoveAt(0);
                 }
             }
@@ -347,7 +354,9 @@ namespace Microsoft.Teams.AI.Application
         /// <returns>A Task representing the async operation.</returns>
         private async Task SendActivity(Activity activity)
         {
-            if (this._ended && activity?.Type == ActivityTypes.Typing) // when ended, just process the last Message activity
+            if (this._ended
+                && (activity?.Type == ActivityTypes.Typing
+                || (activity!?.ChannelData as StreamingChannelData)?.StreamType != StreamType.Final)) // when ended, just process the last Message activity
             {
                 return;
             }
@@ -432,21 +441,25 @@ namespace Microsoft.Teams.AI.Application
 
             if (!this._ended)
             {
-                ResourceResponse response = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
+                _logger.LogInformation("StreamingResponse.SendActivity; HasEnded:{HasEnded}; StreamType:{StreamType}; StreamId:{StreamId}; ActivityId:{ActivityId}; ActivityAttachmentsCount:{AttachmentsCount}; ActivityReplyToId:{ActivityReplyToId};", this._ended, (activity!?.ChannelData as StreamingChannelData)?.StreamType, StreamId, activity?.Id, activity?.Attachments?.Count, activity?.ReplyToId);
 
-                await Task.Delay(TimeSpan.FromSeconds(1.5));
+                ResourceResponse response = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
 
                 // Save assigned stream ID
                 if (string.IsNullOrEmpty(StreamId))
                 {
                     StreamId = response.Id;
                 }
+
+                await Task.Delay(TimeSpan.FromSeconds(1.5));
             }
             else
             {
                 activity.Id = this.StreamId ?? Guid.NewGuid().ToString(); // activity.Id is not returned in SendActivityAsync below, so setting one.
 
                 activity.ReplyToId = this._context.Activity.Id;
+
+                _logger.LogInformation("StreamingResponse.SendActivity; HasEnded:{HasEnded}; StreamType:{StreamType}; StreamId:{StreamId}; ActivityId:{ActivityId}; ActivityAttachmentsCount:{AttachmentsCount}; ActivityReplyToId:{ActivityReplyToId};", this._ended, (activity!?.ChannelData as StreamingChannelData)?.StreamType, StreamId, activity?.Id, activity?.Attachments?.Count, activity?.ReplyToId);
 
                 var _ = await this._context.SendActivityAsync(activity).ConfigureAwait(false);
 
