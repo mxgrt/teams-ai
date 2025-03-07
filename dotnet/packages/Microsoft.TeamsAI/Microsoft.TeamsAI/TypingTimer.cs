@@ -121,9 +121,6 @@ namespace Microsoft.Teams.AI
                 // error but lets make sure our states cleaned up a bit.
                 Dispose();
             }
-            catch (Exception ex)
-            {
-            }
         }
 
         private async Task<ResourceResponse[]> StopTimerWhenSendMessageActivityHandlerAsync(ITurnContext turnContext, List<Activity> activities, Func<Task<ResourceResponse[]>> next)
