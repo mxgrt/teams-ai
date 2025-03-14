@@ -1,5 +1,6 @@
 ﻿using Microsoft.Bot.Builder;
 using Microsoft.Bot.Schema;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
 using System.Runtime.CompilerServices;
@@ -98,7 +99,7 @@ namespace Microsoft.Teams.AI
         /// <param name="state">The turn state</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <returns>The sign in response</returns>
-        public async Task<string?> SignInUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default)
+        public async Task<string?> SignInUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default, ILogger logger = null)
         {
             TokenResponse tokenResponse = await UserTokenClientWrapper.GetUserTokenAsync(context, _settings.ConnectionName, "", cancellationToken);
             if (tokenResponse != null && !string.IsNullOrEmpty(tokenResponse.Token))

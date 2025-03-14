@@ -1,4 +1,5 @@
 ﻿using Microsoft.Bot.Builder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Client;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
@@ -39,24 +40,30 @@ namespace Microsoft.Teams.AI
         /// <param name="state">The turn state</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <returns>The sign in response</returns>
-        public async Task<string?> SignInUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default)
+        public async Task<string?> SignInUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default, ILogger logger = null)
         {
-            string token = await _TryGetUserToken(context);
+            string token = await _TryGetUserToken(context, logger);
             if (!string.IsNullOrEmpty(token))
             {
+                logger?.LogInformation("SignInUserAsync ..1");
                 return token;
             }
 
+            logger?.LogInformation("SignInUserAsync ..2");
             if ((_botAuth != null && _botAuth.IsValidActivity(context)))
             {
+                logger?.LogInformation("SignInUserAsync ..3");
                 return await _botAuth.AuthenticateAsync(context, state);
             }
 
+            logger?.LogInformation("SignInUserAsync ..4");
             if ((_messageExtensionsAuth != null && _messageExtensionsAuth.IsValidActivity(context)))
             {
+                logger?.LogInformation("SignInUserAsync ..5");
                 return await _messageExtensionsAuth.AuthenticateAsync(context);
             }
 
+            logger?.LogInformation("SignInUserAsync ..6");
             throw new AuthException("Incoming activity is not a valid activity to initiate authentication flow.", AuthExceptionReason.InvalidActivity);
         }
 
@@ -113,16 +120,19 @@ namespace Microsoft.Teams.AI
             return token == "" ? null : token;
         }
 
-        private async Task<string> _TryGetUserToken(ITurnContext context)
+        private async Task<string> _TryGetUserToken(ITurnContext context, ILogger logger = null)
         {
             string homeAccountId = $"{context.Activity.From.AadObjectId}.{context.Activity.Conversation.TenantId}";
             try
             {
+                logger?.LogInformation("_TryGetUserToken ..1");
                 AuthenticationResult result = await _msalAdapter.AcquireTokenInLongRunningProcess(_settings.Scopes, homeAccountId);
+                logger?.LogInformation("_TryGetUserToken ..2 {token}", result);
                 return result.AccessToken;
             }
-            catch (MsalClientException)
+            catch (MsalClientException ex)
             {
+                logger?.LogInformation("_TryGetUserToken ..3 {ex}", ex);
                 // Cannot acquire token from cache
             }
 

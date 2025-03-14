@@ -1,4 +1,5 @@
 ﻿using Microsoft.Bot.Builder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
 
@@ -69,7 +70,7 @@ namespace Microsoft.Teams.AI
         /// <param name="state">Application state.</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <returns>The authentication token if user is signed in. Otherwise returns null. In that case the bot will attempt to sign the user in.</returns>
-        Task<string?> SignInUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default);
+        Task<string?> SignInUserAsync(ITurnContext context, TState state, CancellationToken cancellationToken = default, ILogger logger = null);
 
         /// <summary>
         /// Signs out a user.

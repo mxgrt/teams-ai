@@ -1,4 +1,5 @@
-﻿using Microsoft.Bot.Builder;
+﻿using Castle.Core.Logging;
+using Microsoft.Bot.Builder;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
 
@@ -18,7 +19,7 @@ namespace Microsoft.Teams.AI.Tests.Application.Authentication
         }
 
 
-        public Task<string?> IsUserSignedInAsync(ITurnContext turnContext, CancellationToken cancellationToken = default)
+        public Task<string?> IsUserSignedInAsync(ITurnContext turnContext, CancellationToken cancellationToken = default, ILogger logger = null)
         {
             return Task.FromResult<string?>(null);
         }

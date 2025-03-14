@@ -3,6 +3,7 @@ using Microsoft.Bot.Builder.Integration.AspNet.Core;
 using Microsoft.Bot.Connector;
 using Microsoft.Bot.Schema;
 using Microsoft.Bot.Schema.Teams;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.AI;
 using Microsoft.Teams.AI.Application;
 using Microsoft.Teams.AI.Exceptions;
@@ -679,7 +680,8 @@ namespace Microsoft.Teams.AI
                     {
                         Value = response.TaskInfo
                     };
-                } else
+                }
+                else
                 {
                     result.Task = new TaskModuleMessageResponse()
                     {
@@ -988,6 +990,9 @@ namespace Microsoft.Teams.AI
         /// </summary>
         private async Task _OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken = default)
         {
+            var logger = Options.LoggerFactory?.CreateLogger("IBot");
+            logger?.LogInformation("debug ... Activity:{Activity}", turnContext.Activity);
+
             StreamingResponse streamer = null!;
             TState turnState = null!;
             IStorage? storage = null;
@@ -1011,23 +1016,38 @@ namespace Microsoft.Teams.AI
 
                 await turnState!.LoadStateAsync(storage, turnContext);
 
+                logger?.LogInformation("debug ... turnState:{turnState} 1", turnState);
+
+                logger?.LogInformation("debug ... 1", turnContext.Activity);
+
                 // Call before turn handler
                 foreach (TurnEventHandlerAsync<TState> beforeAuthHandler in _beforeAuth)
                 {
+                    logger?.LogInformation("debug ... 2.1", turnContext.Activity);
+
                     if (!await beforeAuthHandler(turnContext, turnState, cancellationToken))
                     {
                         // Save turn state
                         // - This lets the bot keep track of why it ended the previous turn. It also
                         //   allows the dialog system to be used before the AI system is called.
+                        logger?.LogInformation("debug ... turnState:{turnState} 2", turnState);
                         await turnState!.SaveStateAsync(turnContext, storage);
+
+                        logger?.LogInformation("debug ... 2.2", turnContext.Activity);
 
                         return;
                     }
+
+                    logger?.LogInformation("debug ... 2.3", turnContext.Activity);
                 }
+
+                logger?.LogInformation("debug ... 3.1", turnContext.Activity);
 
                 // If user is in sign in flow, return the authentication setting name
                 string? settingName = AuthUtilities.UserInSignInFlow(turnState);
                 bool shouldStartSignIn = _startSignIn != null && await _startSignIn(turnContext, cancellationToken);
+
+                logger?.LogInformation("debug ... 3.2", turnContext.Activity);
 
                 // Sign the user in
                 if (this._authentication != null && (shouldStartSignIn || settingName != null))
@@ -1037,51 +1057,76 @@ namespace Microsoft.Teams.AI
                         settingName = this._authentication.Default;
                     }
 
+                    logger?.LogInformation("debug ... 4.1", turnContext.Activity);
+
                     // Sets the setting name in the context object. It is used in `signIn/verifyState` & `signIn/tokenExchange` route selectors.
                     BotAuthenticationBase<TState>.SetSettingNameInContextActivityValue(turnContext, settingName);
 
-                    SignInResponse response = await this._authentication.SignUserInAsync(turnContext, turnState, settingName);
+                    SignInResponse response = await this._authentication.SignUserInAsync(turnContext, turnState, settingName, default, logger);
 
                     if (response.Status == SignInStatus.Complete)
                     {
+                        logger?.LogInformation("debug ... 4.2", turnContext.Activity);
                         AuthUtilities.DeleteUserInSignInFlow(turnState);
                     }
 
                     if (response.Status == SignInStatus.Pending)
                     {
-                        // Requires user action, save state and stop processing current activity
-                        await turnState.SaveStateAsync(turnContext, storage);
-                        if (Options.AutoResendActivityAfterSignInTimeoutInSeconds <= 0)
-                        {
-                            return;
-                        }
+                        logger?.LogInformation("debug ... 4.3", turnContext.Activity);
 
-                        // if configured, wait for auth to complete
-                        bool authDone = false;
-                        var watch = System.Diagnostics.Stopwatch.StartNew();
-                        while (watch.Elapsed.TotalSeconds <= Options.AutoResendActivityAfterSignInTimeoutInSeconds) // hardcoded for now
+                        // Requires user action, save state and stop processing current activity
+                        logger?.LogInformation("debug ... turnState:{turnState} 3", turnState);
+                        await turnState.SaveStateAsync(turnContext, storage);
+
+                        if (Environment.GetEnvironmentVariable("DISABLE_REDO_OVERRIDE") != "true")
                         {
-                            if (turnContext.IsUserAuthenticationSuccessful())
+                            if (Options.AutoResendActivityAfterSignInTimeoutInSeconds <= 0)
                             {
-                                authDone = true;
-                                break;
+                                logger?.LogInformation("debug ... 4.4", turnContext.Activity);
+                                return;
                             }
 
-                            await Task.Delay(1000);
-                        }
+                            // if configured, wait for auth to complete
+                            bool authDone = false;
+                            var watch = System.Diagnostics.Stopwatch.StartNew();
+                            logger?.LogInformation("debug ... 4.5", turnContext.Activity);
+                            while (watch.Elapsed.TotalSeconds <= Options.AutoResendActivityAfterSignInTimeoutInSeconds) // hardcoded for now
+                            {
+                                logger?.LogInformation("debug ... 4.6", turnContext.Activity);
+                                if (turnContext.IsUserAuthenticationSuccessful())
+                                {
+                                    authDone = true;
+                                    break;
+                                }
 
-                        if (!authDone)
+                                await Task.Delay(1000);
+                            }
+
+                            if (!authDone)
+                            {
+                                logger?.LogInformation("debug ... 4.7", turnContext.Activity);
+
+                                return;
+                            }
+                        }
+                        else
                         {
+                            logger?.LogInformation("debug ... 4.7.5", turnContext.Activity);
                             return;
                         }
                     }
 
+                    logger?.LogInformation("debug ... 4.8", turnContext.Activity);
+
                     if (response.Status == SignInStatus.Error && response.Cause != AuthExceptionReason.InvalidActivity)
                     {
+                        logger?.LogInformation("debug ... 4.9", turnContext.Activity);
                         AuthUtilities.DeleteUserInSignInFlow(turnState);
                         throw new TeamsAIException("An error occurred when trying to sign in.", response.Error!);
                     }
                 }
+
+                logger?.LogInformation("debug ... 4.10", turnContext.Activity);
 
                 // Call before turn handler
                 foreach (TurnEventHandlerAsync<TState> beforeTurnHandler in _beforeTurn)
@@ -1091,11 +1136,14 @@ namespace Microsoft.Teams.AI
                         // Save turn state
                         // - This lets the bot keep track of why it ended the previous turn. It also
                         //   allows the dialog system to be used before the AI system is called.
+                        logger?.LogInformation("debug ... turnState:{turnState} 4", turnState);
                         await turnState!.SaveStateAsync(turnContext, storage);
 
                         return;
                     }
                 }
+
+                logger?.LogInformation("debug ... 4.11", turnContext.Activity);
 
                 // Populate {{$temp.input}}
                 if ((turnState.Temp.Input == null || turnState.Temp.Input.Length == 0) && turnContext.Activity.Text != null)
@@ -1132,6 +1180,8 @@ namespace Microsoft.Teams.AI
                     }
                 }
 
+                logger?.LogInformation("debug ... 4.12", turnContext.Activity);
+
                 // All other ActivityTypes and any unhandled Invokes are run through the remaining routes.
                 if (!eventHandlerCalled)
                 {
@@ -1159,6 +1209,8 @@ namespace Microsoft.Teams.AI
                     await _ai.RunAsync(turnContext, turnState);
                 }
 
+                logger?.LogInformation("debug ... 4.13", turnContext.Activity);
+
                 // Call after turn handler
                 foreach (TurnEventHandlerAsync<TState> afterTurnHandler in _afterTurn)
                 {
@@ -1171,6 +1223,8 @@ namespace Microsoft.Teams.AI
             catch (Exception ex)
             {
                 streamer?.QueueInformativeUpdate("An exception occurred during agent execution...");
+
+                logger?.LogInformation("debug ... 5", turnContext.Activity);
 
                 // Call after exception
                 bool handleException = false;
@@ -1185,8 +1239,11 @@ namespace Microsoft.Teams.AI
 
                 if (!handleException)
                 {
+                    logger?.LogInformation("debug ... 5.2", turnContext.Activity);
                     throw;
                 }
+
+                logger?.LogInformation("debug ... 5.3", turnContext.Activity);
             }
             finally
             {
@@ -1197,14 +1254,20 @@ namespace Microsoft.Teams.AI
                 {
                     await CustomExtension.EndStreamAsync(streamer, turnState);
                 }
+
+                logger?.LogInformation("debug ... 5.4", turnContext.Activity);
             }
 
             if (turnState != null && storage != null)
             {
+                logger?.LogInformation("debug ... 6.1", turnContext.Activity);
                 // [_turnErrorHandlers, streamer.EndStream] may need state, hence this after
                 // no need to save state for unhandled exception, so not in finally block
+                logger?.LogInformation("debug ... turnState:{turnState} 5", turnState);
                 await turnState.SaveStateAsync(turnContext, storage);
             }
+
+            logger?.LogInformation("debug ... 6.2", turnContext.Activity);
         }
 
         /// <summary>

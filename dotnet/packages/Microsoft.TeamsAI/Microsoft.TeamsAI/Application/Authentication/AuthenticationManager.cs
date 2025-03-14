@@ -1,4 +1,5 @@
 ﻿using Microsoft.Bot.Builder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
 
@@ -59,7 +60,7 @@ namespace Microsoft.Teams.AI
         /// <param name="settingName">Optional. The name of the authentication handler to use. If not specified, the default handler name is used.</param>
         /// <param name="cancellationToken">The cancellation token</param>
         /// <returns>The sign in response</returns>
-        public async Task<SignInResponse> SignUserInAsync(ITurnContext context, TState state, string? settingName = null, CancellationToken cancellationToken = default)
+        public async Task<SignInResponse> SignUserInAsync(ITurnContext context, TState state, string? settingName = null, CancellationToken cancellationToken = default, ILogger logger = null)
         {
             if (settingName == null)
             {
@@ -70,16 +71,20 @@ namespace Microsoft.Teams.AI
             string? token;
             try
             {
+                logger?.LogInformation("SignInUserAsync ..1");
                 token = await auth.SignInUserAsync(context, state, cancellationToken);
+                logger?.LogInformation("SignInUserAsync ..2 token:{token}", token);
             }
             catch (Exception ex)
             {
+                logger?.LogInformation("SignInUserAsync ..3 ex:{ex}", ex);
                 SignInResponse newResponse = new(SignInStatus.Error);
                 newResponse.Error = ex;
                 newResponse.Cause = AuthExceptionReason.Other;
                 if (ex is AuthException authEx)
                 {
                     newResponse.Cause = authEx.Cause;
+                    logger?.LogInformation("SignInUserAsync ..4 newResponseCause:{newResponseCause} authExCause:{authExCause}", newResponse.Cause, authEx.Cause);
                 }
 
                 return newResponse;
@@ -88,10 +93,12 @@ namespace Microsoft.Teams.AI
 
             if (token != null)
             {
+                logger?.LogInformation("SetTokenInState token:{token}", token);
                 AuthUtilities.SetTokenInState(state, settingName, token);
                 return new SignInResponse(SignInStatus.Complete);
             }
 
+            logger?.LogInformation("SetTokenInState SignInStatus.Pending");
             return new SignInResponse(SignInStatus.Pending);
         }
 
