@@ -72,7 +72,7 @@ namespace Microsoft.Teams.AI
             try
             {
                 logger?.LogInformation("SignInUserAsync ..1");
-                token = await auth.SignInUserAsync(context, state, cancellationToken);
+                token = await auth.SignInUserAsync(context, state, cancellationToken, logger);
                 logger?.LogInformation("SignInUserAsync ..2 token:{token}", token);
             }
             catch (Exception ex)
