@@ -8,39 +8,38 @@ namespace Microsoft.Teams.AI;
 
 public static class CustomExtension
 {
+    private const string CONSENT_PROVIDED_LASTUTC_KEY = "CONSENT_PROVIDED_LASTUTC_KEY";
     private static readonly Dictionary<string, DateTime> globalStateDict = new Dictionary<string, DateTime>();
 
-    public static void SetUserAuthenticationStatusAsSucceeded(this ITurnContext turnContext) // this works only for process within same machine, some issue with using turnState.Conversations on LOCAL to test.
+    public static void SetUserAuthenticationStatusAsSucceeded(ITurnContext turnContext, TurnState turnState) // this works only for process within same machine, some issue with using turnState.Conversations on LOCAL to test.
     {
-        lock (globalStateDict)
+        var consentProvidedLastUtc = DateTime.UtcNow;
+        if (!globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
         {
-            if (!globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
-            {
-                try
-                {
-                    globalStateDict.Add(turnContext.Activity.Conversation.Id, DateTime.UtcNow);
-                }
-                catch { }
-            }
+            try { globalStateDict.Add(turnContext.Activity.Conversation.Id, consentProvidedLastUtc); }
+            catch { }
         }
+
+        turnState.User.Set<DateTime>(CONSENT_PROVIDED_LASTUTC_KEY, consentProvidedLastUtc);
     }
 
-    internal static bool IsUserAuthenticationSuccessful(this ITurnContext turnContext)
+    internal static bool IsUserAuthenticationSuccessful(ITurnContext turnContext, TurnState turnState)
     {
+        DateTime consentProvidedLastUtc = default;
         if (globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
         {
-            var insertedTime = globalStateDict[turnContext.Activity.Conversation.Id];
-            lock (globalStateDict)
-            {
-                try
-                {
-                    globalStateDict.Remove(turnContext.Activity.Conversation.Id);
-                }
-                catch { }
-            }
-            return insertedTime > DateTime.UtcNow.AddMinutes(-5); // expire after 5 minutes
+            consentProvidedLastUtc = globalStateDict[turnContext.Activity.Conversation.Id];
+            try { globalStateDict.Remove(turnContext.Activity.Conversation.Id); }
+            catch { }
         }
-        return false;
+
+        if (consentProvidedLastUtc == default)
+        {
+            try { consentProvidedLastUtc = turnState.User.Get<DateTime>(CONSENT_PROVIDED_LASTUTC_KEY); }
+            catch { }
+        }
+
+        return consentProvidedLastUtc > DateTime.UtcNow.AddMinutes(-5); // expire after 5 minutes
     }
 
     public static StreamingResponse TryGetStreamer(IMemory memory)

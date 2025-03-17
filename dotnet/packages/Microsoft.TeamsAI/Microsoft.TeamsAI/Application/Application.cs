@@ -985,10 +985,13 @@ namespace Microsoft.Teams.AI
             _typingTimer = null;
         }
 
+        private async Task _OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken = default)
+            => await _OnTurnAsync(turnContext, cancellationToken, stepCount: 0);
+
         /// <summary>
         /// Internal method to wrap the logic of handling a bot turn.
         /// </summary>
-        private async Task _OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken = default)
+        private async Task _OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken, int stepCount)
         {
             var logger = Options.LoggerFactory?.CreateLogger("IBot");
             logger?.LogInformation("debug ... Activity:{Activity}", turnContext.Activity);
@@ -1078,7 +1081,7 @@ namespace Microsoft.Teams.AI
                         logger?.LogInformation("debug ... turnState:{turnState} 3", turnState);
                         await turnState.SaveStateAsync(turnContext, storage);
 
-                        if (Environment.GetEnvironmentVariable("DISABLE_REDO_OVERRIDE") != "true")
+                        if (Environment.GetEnvironmentVariable("DISABLE_REDO_OVERRIDE") != "true" && stepCount == 0)
                         {
                             if (Options.AutoResendActivityAfterSignInTimeoutInSeconds <= 0)
                             {
@@ -1087,27 +1090,43 @@ namespace Microsoft.Teams.AI
                             }
 
                             // if configured, wait for auth to complete
-                            bool authDone = false;
                             var watch = System.Diagnostics.Stopwatch.StartNew();
                             logger?.LogInformation("debug ... 4.5", turnContext.Activity);
                             while (watch.Elapsed.TotalSeconds <= Options.AutoResendActivityAfterSignInTimeoutInSeconds) // hardcoded for now
                             {
                                 logger?.LogInformation("debug ... 4.6", turnContext.Activity);
-                                if (turnContext.IsUserAuthenticationSuccessful())
+
+                                var turnStateReloaded = Options.TurnStateFactory!();
+
+                                logger?.LogInformation("debug ... 4.6.1", turnContext.Activity);
+
+                                await turnStateReloaded!.LoadStateAsync(storage, turnContext);
+
+                                logger?.LogInformation("debug ... 4.6.2", turnContext.Activity);
+
+                                if (CustomExtension.IsUserAuthenticationSuccessful(turnContext, turnStateReloaded))
                                 {
-                                    authDone = true;
-                                    break;
+                                    try
+                                    {
+                                        logger?.LogInformation("debug ... 4.6.3", turnContext.Activity);
+                                        await _OnTurnAsync(turnContext, cancellationToken, stepCount: stepCount + 1);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        logger?.LogError(ex, "An exception occurred in REDO_OVERRIDE");
+                                    }
+
+                                    logger?.LogInformation("Auth done return");
+                                    return;
                                 }
 
                                 await Task.Delay(1000);
                             }
 
-                            if (!authDone)
-                            {
-                                logger?.LogInformation("debug ... 4.7", turnContext.Activity);
+                            logger?.LogInformation("debug ... 4.7", turnContext.Activity);
 
-                                return;
-                            }
+                            logger?.LogWarning("Auth not done return");
+                            return;
                         }
                         else
                         {
