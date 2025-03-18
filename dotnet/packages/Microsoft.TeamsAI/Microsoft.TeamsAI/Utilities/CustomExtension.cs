@@ -11,32 +11,39 @@ public static class CustomExtension
     private const string CONSENT_PROVIDED_LASTUTC_KEY = "CONSENT_PROVIDED_LASTUTC_KEY";
     private static readonly Dictionary<string, DateTime> globalStateDict = new Dictionary<string, DateTime>();
 
-    public static void SetUserAuthenticationStatusAsSucceeded(ITurnContext turnContext, TurnState turnState) // this works only for process within same machine, some issue with using turnState.Conversations on LOCAL to test.
+    public static void SetUserAuthenticationStatusAsSucceeded(ITurnContext turnContext, TurnState turnState, ILogger logger) // this works only for process within same machine, some issue with using turnState.Conversations on LOCAL to test.
     {
         var consentProvidedLastUtc = DateTime.UtcNow;
+        logger?.LogInformation($"SetUserAuthenticationStatusAsSucceeded #1 : {consentProvidedLastUtc}");
         if (!globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
         {
             try { globalStateDict.Add(turnContext.Activity.Conversation.Id, consentProvidedLastUtc); }
             catch { }
         }
 
+        logger?.LogInformation($"SetUserAuthenticationStatusAsSucceeded #2 : {consentProvidedLastUtc}");
         turnState.User.Set<DateTime>(CONSENT_PROVIDED_LASTUTC_KEY, consentProvidedLastUtc);
+        logger?.LogInformation($"SetUserAuthenticationStatusAsSucceeded #3 : {consentProvidedLastUtc}");
     }
 
-    internal static bool IsUserAuthenticationSuccessful(ITurnContext turnContext, TurnState turnState)
+    internal static bool IsUserAuthenticationSuccessful(ITurnContext turnContext, TurnState turnState, ILogger logger)
     {
         DateTime consentProvidedLastUtc = default;
         if (globalStateDict.ContainsKey(turnContext.Activity.Conversation.Id))
         {
+            logger?.LogInformation($"consentProvidedLastUtc #1 : {consentProvidedLastUtc}");
             consentProvidedLastUtc = globalStateDict[turnContext.Activity.Conversation.Id];
             try { globalStateDict.Remove(turnContext.Activity.Conversation.Id); }
             catch { }
+            logger?.LogInformation($"consentProvidedLastUtc #2 : {consentProvidedLastUtc}");
         }
 
         if (consentProvidedLastUtc == default)
         {
+            logger?.LogInformation($"consentProvidedLastUtc #3 : {consentProvidedLastUtc}");
             try { consentProvidedLastUtc = turnState.User.Get<DateTime>(CONSENT_PROVIDED_LASTUTC_KEY); }
             catch { }
+            logger?.LogInformation($"consentProvidedLastUtc #4 : {consentProvidedLastUtc}");
         }
 
         return consentProvidedLastUtc > DateTime.UtcNow.AddMinutes(-5); // expire after 5 minutes

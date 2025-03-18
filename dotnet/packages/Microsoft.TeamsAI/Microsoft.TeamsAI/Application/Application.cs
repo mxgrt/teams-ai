@@ -48,6 +48,7 @@ namespace Microsoft.Teams.AI
         private readonly ConcurrentQueue<TurnEventHandlerAsync<TState>> _beforeTurn;
         private readonly ConcurrentQueue<TurnEventHandlerAsync<TState>> _afterTurn;
         private readonly ConcurrentQueue<TurnErrorEventHandlerAsync<TState>> _turnErrorHandlers;
+        private TurnEventHandlerAsync<TState> _onSignInComplete;
 
         private readonly SelectorAsync? _startSignIn;
 
@@ -916,6 +917,13 @@ namespace Microsoft.Teams.AI
             return this;
         }
 
+        public Application<TState> OnSignInComplete(TurnEventHandlerAsync<TState> handler)
+        {
+            Verify.ParamNotNull(handler);
+            this._onSignInComplete = this._onSignInComplete == null ? handler : throw new InvalidOperationException("OnSignInComplete cannot be assigned twice");
+            return this;
+        }
+
         /// <summary>
         /// Called by the adapter (for example, a <see cref="CloudAdapter"/>)
         /// at runtime in order to process an inbound <see cref="Activity"/>.
@@ -1071,6 +1079,7 @@ namespace Microsoft.Teams.AI
                     {
                         logger?.LogInformation("debug ... 4.2", turnContext.Activity);
                         AuthUtilities.DeleteUserInSignInFlow(turnState);
+                        this._onSignInComplete?.Invoke(turnContext, turnState, cancellationToken);
                     }
 
                     if (response.Status == SignInStatus.Pending)
@@ -1104,7 +1113,7 @@ namespace Microsoft.Teams.AI
 
                                 logger?.LogInformation("debug ... 4.6.2", turnContext.Activity);
 
-                                if (CustomExtension.IsUserAuthenticationSuccessful(turnContext, turnStateReloaded))
+                                if (CustomExtension.IsUserAuthenticationSuccessful(turnContext, turnStateReloaded, logger))
                                 {
                                     try
                                     {
