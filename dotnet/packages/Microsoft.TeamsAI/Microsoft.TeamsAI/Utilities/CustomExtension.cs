@@ -61,7 +61,7 @@ public static class CustomExtension
             && !string.IsNullOrWhiteSpace(turnContext.Activity?.Text);
     }
 
-    internal static StreamingResponse GetOrCreateStreamerFromMemory(IMemory memory, ITurnContext context, bool? enableFeedbackLoop, string feedbackLoopType, string startStreamingMessage, ILogger logger)
+    public static StreamingResponse GetOrCreateStreamerFromMemory(IMemory memory, ITurnContext context, bool? enableFeedbackLoop, string feedbackLoopType, string startStreamingMessage, ILogger logger)
     {
         // Attach to any existing streamer
         var streamer = TryGetStreamer(memory);
