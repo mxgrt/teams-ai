@@ -50,6 +50,8 @@ namespace Microsoft.Teams.AI
 
         private readonly SelectorAsync? _startSignIn;
 
+        private Func<Task> redoUserActionAsync = null!;
+
         /// <summary>
         /// Creates a new Application instance.
         /// </summary>
@@ -95,7 +97,7 @@ namespace Microsoft.Teams.AI
 
             if (options.Authentication != null)
             {
-                _authentication = new AuthenticationManager<TState>(this, options.Authentication, options.Storage);
+                _authentication = new AuthenticationManager<TState>(this, options.Authentication, options.Storage, redoUserActionAsync);
 
                 if (options.Authentication.AutoSignIn != null)
                 {
@@ -679,7 +681,8 @@ namespace Microsoft.Teams.AI
                     {
                         Value = response.TaskInfo
                     };
-                } else
+                }
+                else
                 {
                     result.Task = new TaskModuleMessageResponse()
                     {
@@ -987,7 +990,12 @@ namespace Microsoft.Teams.AI
         /// Internal method to wrap the logic of handling a bot turn.
         /// </summary>
         private async Task _OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken = default)
+            => await _OnTurnAsync(turnContext, cancellationToken, bypassAuth: false);
+
+        private async Task _OnTurnAsync(ITurnContext turnContext, CancellationToken cancellationToken = default, bool bypassAuth = false)
         {
+            redoUserActionAsync = () => _OnTurnAsync(turnContext, cancellationToken, bypassAuth: true);
+
             StreamingResponse streamer = null!;
             TState turnState = null!;
             IStorage? storage = null;
@@ -1025,61 +1033,64 @@ namespace Microsoft.Teams.AI
                     }
                 }
 
-                // If user is in sign in flow, return the authentication setting name
-                string? settingName = AuthUtilities.UserInSignInFlow(turnState);
-                bool shouldStartSignIn = _startSignIn != null && await _startSignIn(turnContext, cancellationToken);
-
-                // Sign the user in
-                if (this._authentication != null && (shouldStartSignIn || settingName != null))
+                if (!bypassAuth)
                 {
-                    if (settingName == null)
+                    // If user is in sign in flow, return the authentication setting name
+                    string? settingName = AuthUtilities.UserInSignInFlow(turnState);
+                    bool shouldStartSignIn = _startSignIn != null && await _startSignIn(turnContext, cancellationToken);
+
+                    // Sign the user in
+                    if (this._authentication != null && (shouldStartSignIn || settingName != null))
                     {
-                        settingName = this._authentication.Default;
-                    }
-
-                    // Sets the setting name in the context object. It is used in `signIn/verifyState` & `signIn/tokenExchange` route selectors.
-                    BotAuthenticationBase<TState>.SetSettingNameInContextActivityValue(turnContext, settingName);
-
-                    SignInResponse response = await this._authentication.SignUserInAsync(turnContext, turnState, settingName);
-
-                    if (response.Status == SignInStatus.Complete)
-                    {
-                        AuthUtilities.DeleteUserInSignInFlow(turnState);
-                    }
-
-                    if (response.Status == SignInStatus.Pending)
-                    {
-                        // Requires user action, save state and stop processing current activity
-                        await turnState.SaveStateAsync(turnContext, storage);
-                        if (Options.AutoResendActivityAfterSignInTimeoutInSeconds <= 0)
+                        if (settingName == null)
                         {
-                            return;
+                            settingName = this._authentication.Default;
                         }
 
-                        // if configured, wait for auth to complete
-                        bool authDone = false;
-                        var watch = System.Diagnostics.Stopwatch.StartNew();
-                        while (watch.Elapsed.TotalSeconds <= Options.AutoResendActivityAfterSignInTimeoutInSeconds) // hardcoded for now
+                        // Sets the setting name in the context object. It is used in `signIn/verifyState` & `signIn/tokenExchange` route selectors.
+                        BotAuthenticationBase<TState>.SetSettingNameInContextActivityValue(turnContext, settingName);
+
+                        SignInResponse response = await this._authentication.SignUserInAsync(turnContext, turnState, settingName);
+
+                        if (response.Status == SignInStatus.Complete)
                         {
-                            if (turnContext.IsUserAuthenticationSuccessful())
+                            AuthUtilities.DeleteUserInSignInFlow(turnState);
+                        }
+
+                        if (response.Status == SignInStatus.Pending)
+                        {
+                            // Requires user action, save state and stop processing current activity
+                            await turnState.SaveStateAsync(turnContext, storage);
+                            if (Options.AutoResendActivityAfterSignInTimeoutInSeconds <= 0)
                             {
-                                authDone = true;
-                                break;
+                                return;
                             }
 
-                            await Task.Delay(1000);
+                            // if configured, wait for auth to complete
+                            bool authDone = false;
+                            var watch = System.Diagnostics.Stopwatch.StartNew();
+                            while (watch.Elapsed.TotalSeconds <= Options.AutoResendActivityAfterSignInTimeoutInSeconds) // hardcoded for now
+                            {
+                                if (turnContext.IsUserAuthenticationSuccessful())
+                                {
+                                    authDone = true;
+                                    break;
+                                }
+
+                                await Task.Delay(1000);
+                            }
+
+                            if (!authDone)
+                            {
+                                return;
+                            }
                         }
 
-                        if (!authDone)
+                        if (response.Status == SignInStatus.Error && response.Cause != AuthExceptionReason.InvalidActivity)
                         {
-                            return;
+                            AuthUtilities.DeleteUserInSignInFlow(turnState);
+                            throw new TeamsAIException("An error occurred when trying to sign in.", response.Error!);
                         }
-                    }
-
-                    if (response.Status == SignInStatus.Error && response.Cause != AuthExceptionReason.InvalidActivity)
-                    {
-                        AuthUtilities.DeleteUserInSignInFlow(turnState);
-                        throw new TeamsAIException("An error occurred when trying to sign in.", response.Error!);
                     }
                 }
 

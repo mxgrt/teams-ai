@@ -25,7 +25,7 @@ namespace Microsoft.Teams.AI
         /// <param name="options">The authentication options</param>
         /// <param name="storage">The storage to use.</param>
         /// <exception cref="TeamsAIException">Throws when the options does not contain authentication handlers</exception>
-        public AuthenticationManager(Application<TState> app, AuthenticationOptions<TState> options, IStorage? storage)
+        public AuthenticationManager(Application<TState> app, AuthenticationOptions<TState> options, IStorage? storage, Func<Task> redoUserActionAsync)
         {
             if (options._authenticationSettings.Count == 0)
             {
