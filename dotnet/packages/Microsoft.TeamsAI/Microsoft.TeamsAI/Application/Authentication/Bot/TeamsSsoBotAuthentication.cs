@@ -1,8 +1,8 @@
 ﻿using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Schema;
-using Microsoft.Teams.AI.State;
 using Microsoft.Teams.AI.Exceptions;
+using Microsoft.Teams.AI.State;
 using Newtonsoft.Json.Linq;
 using System.Text.RegularExpressions;
 
@@ -17,6 +17,7 @@ namespace Microsoft.Teams.AI
         private const string SSO_DIALOG_ID = "_TeamsSsoDialog";
         private Regex _tokenExchangeIdRegex;
         protected TeamsSsoPrompt _prompt;
+        private Func<Task> _redoUserTaskAsync;
 
         /// <summary>
         /// Initializes the class
@@ -25,10 +26,12 @@ namespace Microsoft.Teams.AI
         /// <param name="name">The name of current authentication handler</param>
         /// <param name="settings">The authentication settings</param>
         /// <param name="storage">The storage to save turn state</param>
-        public TeamsSsoBotAuthentication(Application<TState> app, string name, TeamsSsoSettings settings, IStorage? storage = null) : base(app, name, storage)
+        /// <param name="redoUserTaskAsync">Function to continue user action after SSO</param>
+        public TeamsSsoBotAuthentication(Application<TState> app, string name, TeamsSsoSettings settings, IStorage? storage = null, Func<Task> redoUserTaskAsync = null) : base(app, name, storage)
         {
             _tokenExchangeIdRegex = new Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}-" + name);
             _prompt = new TeamsSsoPrompt("TeamsSsoPrompt", name, settings);
+            _redoUserTaskAsync = redoUserTaskAsync;
 
             // Do not save state for duplicate token exchange events to avoid eTag conflicts
             app.OnAfterTurn((context, state, cancellationToken) =>
@@ -96,6 +99,7 @@ namespace Microsoft.Teams.AI
             {
                 async (step, cancellationToken) =>
                 {
+                    await context.SendActivityAsync("Starting User Login", cancellationToken: cancellationToken);
                     return await step.BeginDialogAsync(this._prompt.Id);
                 },
                 async (step, cancellationToken) =>
@@ -103,8 +107,19 @@ namespace Microsoft.Teams.AI
                     TokenResponse? tokenResponse = step.Result as TokenResponse;
                     if (tokenResponse != null && await ShouldDedup(context))
                     {
-                        state.Temp.DuplicateTokenExchange = true;
-                        return Dialog.EndOfTurn;
+                        if (_redoUserTaskAsync != null)
+                        {
+                            await context.UpdateActivityAsync(step.Context.Activity.CreateReply("User login success!"), cancellationToken);
+                            state.User.Add("UserSSOToken", tokenResponse.Token);
+                            await state.SaveStateAsync(context, _storage).ConfigureAwait(false);
+                            await _redoUserTaskAsync().ConfigureAwait(false);
+                        }
+
+                        if (await ShouldDedup(context))
+                        {
+                            state.Temp.DuplicateTokenExchange = true;
+                            return Dialog.EndOfTurn;
+                        }
                     }
                     return await step.EndDialogAsync(step.Result);
                 }

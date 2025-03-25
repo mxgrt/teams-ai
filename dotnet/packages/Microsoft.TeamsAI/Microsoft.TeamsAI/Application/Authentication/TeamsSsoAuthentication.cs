@@ -1,4 +1,5 @@
 ﻿using Microsoft.Bot.Builder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Client;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
@@ -16,6 +17,7 @@ namespace Microsoft.Teams.AI
         internal TeamsSsoBotAuthentication<TState>? _botAuth;
         private TeamsSsoMessageExtensionsAuthentication? _messageExtensionsAuth;
         private TeamsSsoSettings _settings;
+        private ILogger _logger;
 
         /// <summary>
         /// Initialize instance for current class
@@ -24,10 +26,13 @@ namespace Microsoft.Teams.AI
         /// <param name="name">The authentication name.</param>
         /// <param name="settings">The settings to initialize the class</param>
         /// <param name="storage">The storage to use.</param>
-        public TeamsSsoAuthentication(Application<TState> app, string name, TeamsSsoSettings settings, IStorage? storage = null)
+        /// <param name="redoUserTaskAsync">Function to continue user action after SSO</param>
+        /// <param name="logger">logger</param>
+        public TeamsSsoAuthentication(Application<TState> app, string name, TeamsSsoSettings settings, IStorage? storage = null, Func<Task> redoUserTaskAsync = null, ILogger logger = null)
         {
             _settings = settings;
-            _botAuth = new TeamsSsoBotAuthentication<TState>(app, name, _settings, storage);
+            _logger = logger;
+            _botAuth = new TeamsSsoBotAuthentication<TState>(app, name, _settings, storage, redoUserTaskAsync);
             _messageExtensionsAuth = new TeamsSsoMessageExtensionsAuthentication(_settings);
             _msalAdapter = new ConfidentialClientApplicationAdapter(settings.MSAL);
         }
@@ -121,9 +126,10 @@ namespace Microsoft.Teams.AI
                 AuthenticationResult result = await _msalAdapter.AcquireTokenInLongRunningProcess(_settings.Scopes, homeAccountId);
                 return result.AccessToken;
             }
-            catch (MsalClientException)
+            catch (MsalClientException ex)
             {
                 // Cannot acquire token from cache
+                _logger?.LogInformation($"Failed to acquire token. Error: {ex.Message}");
             }
 
             return ""; // Return empty indication no token found in cache

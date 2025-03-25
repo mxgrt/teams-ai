@@ -94,10 +94,11 @@ namespace Microsoft.Teams.AI
             _beforeTurn = new ConcurrentQueue<TurnEventHandlerAsync<TState>>();
             _afterTurn = new ConcurrentQueue<TurnEventHandlerAsync<TState>>();
             _turnErrorHandlers = new ConcurrentQueue<TurnErrorEventHandlerAsync<TState>>();
+            var logger = Options.LoggerFactory?.CreateLogger("TeamsAIBotApp");
 
             if (options.Authentication != null)
             {
-                _authentication = new AuthenticationManager<TState>(this, options.Authentication, options.Storage, redoUserActionAsync);
+                _authentication = new AuthenticationManager<TState>(this, options.Authentication, options.Storage, logger, redoUserActionAsync);
 
                 if (options.Authentication.AutoSignIn != null)
                 {
