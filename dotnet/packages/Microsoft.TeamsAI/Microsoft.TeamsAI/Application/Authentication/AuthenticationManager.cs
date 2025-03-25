@@ -1,4 +1,5 @@
 ﻿using Microsoft.Bot.Builder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
 
@@ -24,8 +25,10 @@ namespace Microsoft.Teams.AI
         /// <param name="app">The application.</param>
         /// <param name="options">The authentication options</param>
         /// <param name="storage">The storage to use.</param>
+        /// <param name="logger">Logger</param>
+        /// <param name="redoUserActionAsync">Function to continue user action after SSO</param>
         /// <exception cref="TeamsAIException">Throws when the options does not contain authentication handlers</exception>
-        public AuthenticationManager(Application<TState> app, AuthenticationOptions<TState> options, IStorage? storage, Func<Task> redoUserActionAsync)
+        public AuthenticationManager(Application<TState> app, AuthenticationOptions<TState> options, IStorage? storage, ILogger? logger = null, Func<Task>? redoUserActionAsync = null)
         {
             if (options._authenticationSettings.Count == 0)
             {
@@ -46,7 +49,7 @@ namespace Microsoft.Teams.AI
                 }
                 else if (setting is TeamsSsoSettings teamsSsoSettings)
                 {
-                    _authentications.Add(key, new TeamsSsoAuthentication<TState>(app, key, teamsSsoSettings, storage));
+                    _authentications.Add(key, new TeamsSsoAuthentication<TState>(app, key, teamsSsoSettings, storage, redoUserActionAsync, logger));
                 }
             }
         }
