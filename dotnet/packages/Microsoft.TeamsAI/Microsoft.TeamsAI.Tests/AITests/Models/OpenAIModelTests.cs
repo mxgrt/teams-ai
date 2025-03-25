@@ -18,6 +18,7 @@ using Azure.Identity;
 using Microsoft.Teams.AI.AI.Augmentations;
 using Microsoft.Teams.AI.Application;
 using Microsoft.Bot.Schema;
+using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Teams.AI.Tests.AITests.Models
 {
@@ -316,7 +317,7 @@ namespace Microsoft.Teams.AI.Tests.AITests.Models
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            var streamer = new StreamingResponse(turnContext);
+            var streamer = new StreamingResponse(turnContext, new Mock<ILogger>().Object);
             var state = new TurnState();
             await state.LoadStateAsync(null, turnContext);
             state.SetValue("temp.streamer", streamer);

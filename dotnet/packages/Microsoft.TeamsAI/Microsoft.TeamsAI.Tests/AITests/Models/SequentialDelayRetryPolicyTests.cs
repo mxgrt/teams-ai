@@ -1,4 +1,6 @@
-﻿using Microsoft.Teams.AI.AI.Models;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Teams.AI.AI.Models;
+using Moq;
 using System.ClientModel.Primitives;
 
 namespace Microsoft.Teams.AI.Tests.AITests.Models
@@ -15,7 +17,7 @@ namespace Microsoft.Teams.AI.Tests.AITests.Models
                 TimeSpan.FromMilliseconds(2000),
                 TimeSpan.FromMilliseconds(3000),
             };
-            var strategy = new TestSequentialDelayRetryPolicy(delays);
+            var strategy = new TestSequentialDelayRetryPolicy(delays, new Mock<ILogger>().Object);
 
             // Act
             var result1 = strategy.GetNextDelayMethod(null, 1);
@@ -33,7 +35,7 @@ namespace Microsoft.Teams.AI.Tests.AITests.Models
 
     internal sealed class TestSequentialDelayRetryPolicy : SequentialDelayRetryPolicy
     {
-        public TestSequentialDelayRetryPolicy(List<TimeSpan> delays) : base(delays)
+        public TestSequentialDelayRetryPolicy(List<TimeSpan> delays, ILogger logger) : base(delays, 0, logger)
         {
         }
 

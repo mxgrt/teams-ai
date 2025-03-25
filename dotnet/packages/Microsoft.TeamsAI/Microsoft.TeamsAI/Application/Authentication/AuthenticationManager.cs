@@ -28,7 +28,7 @@ namespace Microsoft.Teams.AI
         /// <param name="logger">Logger</param>
         /// <param name="redoUserActionAsync">Function to continue user action after SSO</param>
         /// <exception cref="TeamsAIException">Throws when the options does not contain authentication handlers</exception>
-        public AuthenticationManager(Application<TState> app, AuthenticationOptions<TState> options, IStorage? storage, ILogger logger, Func<Task> redoUserActionAsync)
+        public AuthenticationManager(Application<TState> app, AuthenticationOptions<TState> options, IStorage? storage, ILogger? logger = null, Func<Task>? redoUserActionAsync = null)
         {
             if (options._authenticationSettings.Count == 0)
             {

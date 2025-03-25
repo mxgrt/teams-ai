@@ -2,6 +2,7 @@
 using AdaptiveCards;
 using Microsoft.Bot.Builder;
 using Microsoft.Bot.Schema;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.AI.Action;
 using Microsoft.Teams.AI.AI.Models;
 using Microsoft.Teams.AI.Application;
@@ -32,7 +33,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             streamer.QueueInformativeUpdate("starting");
             await streamer.WaitForQueue();
 
@@ -56,7 +57,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             streamer.QueueInformativeUpdate("first");
             streamer.QueueInformativeUpdate("second");
             await streamer.WaitForQueue();
@@ -81,7 +82,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             await streamer.EndStream();
 
             // Act
@@ -110,7 +111,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             streamer.QueueTextChunk("first");
             await streamer.WaitForQueue();
             streamer.QueueTextChunk("second");
@@ -135,7 +136,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             streamer.QueueTextChunk("first");
             await streamer.WaitForQueue();
             streamer.QueueTextChunk("second");
@@ -169,7 +170,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             await streamer.EndStream();
             Assert.Equal(0, streamer.UpdatesSent());
         }
@@ -191,7 +192,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             streamer.QueueTextChunk("first");
             await streamer.WaitForQueue();
             streamer.QueueTextChunk("second");
@@ -217,7 +218,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             List<Citation> citations = new List<Citation>();
             citations.Add(new Citation(content: "test-content", title: "test", url: "https://example.com"));
             streamer.SetCitations(citations);
@@ -253,7 +254,7 @@ namespace Microsoft.Teams.AI.Tests.Application
                 conversation: new() { Id = "conversationId" },
                 from: new() { Id = "fromId" }
             ));
-            StreamingResponse streamer = new(turnContext);
+            StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
             streamer.QueueTextChunk("first");
             await streamer.WaitForQueue();
             streamer.QueueTextChunk("second");
@@ -293,7 +294,7 @@ namespace Microsoft.Teams.AI.Tests.Application
             turnContextMock.Setup((tc) => tc.SendActivityAsync(It.IsAny<Activity>(), It.IsAny<CancellationToken>())).ThrowsAsync(new Exception("Forbidden operation"));
             
             // Act
-            StreamingResponse streamer = new(turnContextMock.Object);
+            StreamingResponse streamer = new(turnContextMock.Object, new Mock<ILogger>().Object);
             Exception ex = await Assert.ThrowsAsync<TeamsAIException>(() => streamer.EndStream());
 
 
