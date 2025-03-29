@@ -1,8 +1,11 @@
 ﻿using Microsoft.Bot.Builder;
 using Microsoft.Bot.Builder.Dialogs;
 using Microsoft.Bot.Schema;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Teams.AI.Exceptions;
 using Microsoft.Teams.AI.State;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Text.RegularExpressions;
 
@@ -17,7 +20,7 @@ namespace Microsoft.Teams.AI
         private const string SSO_DIALOG_ID = "_TeamsSsoDialog";
         private Regex _tokenExchangeIdRegex;
         protected TeamsSsoPrompt _prompt;
-        private Func<Task> _redoUserTaskAsync;
+        protected ILogger _logger;
 
         /// <summary>
         /// Initializes the class
@@ -27,11 +30,11 @@ namespace Microsoft.Teams.AI
         /// <param name="settings">The authentication settings</param>
         /// <param name="storage">The storage to save turn state</param>
         /// <param name="redoUserTaskAsync">Function to continue user action after SSO</param>
-        public TeamsSsoBotAuthentication(Application<TState> app, string name, TeamsSsoSettings settings, IStorage? storage = null, Func<Task> redoUserTaskAsync = null) : base(app, name, storage)
+        public TeamsSsoBotAuthentication(Application<TState> app, string name, TeamsSsoSettings settings, IStorage? storage = null, Func<Task>? redoUserTaskAsync = null, ILogger? logger = null) : base(app, name, storage)
         {
             _tokenExchangeIdRegex = new Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}-" + name);
             _prompt = new TeamsSsoPrompt("TeamsSsoPrompt", name, settings);
-            _redoUserTaskAsync = redoUserTaskAsync;
+            _logger = logger ?? NullLogger.Instance;
 
             // Do not save state for duplicate token exchange events to avoid eTag conflicts
             app.OnAfterTurn((context, state, cancellationToken) =>
@@ -99,27 +102,35 @@ namespace Microsoft.Teams.AI
             {
                 async (step, cancellationToken) =>
                 {
-                    await context.SendActivityAsync("Starting User Login", cancellationToken: cancellationToken);
+                    var hasQuestionValue = state.Conversation.TryGetValue("QuestionActivity", out object? questionActivity);
+                    if (hasQuestionValue)
+                    {
+                        state.Conversation.Remove("QuestionActivity");
+                    }
+                    state.Conversation.Add("QuestionActivity", step.Context.Activity);
+
+                    await context.SendActivityAsync("Signing user", cancellationToken: cancellationToken);
                     return await step.BeginDialogAsync(this._prompt.Id);
                 },
                 async (step, cancellationToken) =>
                 {
                     TokenResponse? tokenResponse = step.Result as TokenResponse;
-                    if (tokenResponse != null && await ShouldDedup(context))
+                    if (tokenResponse != null)
                     {
-                        if (_redoUserTaskAsync != null)
-                        {
-                            await context.UpdateActivityAsync(step.Context.Activity.CreateReply("User login success!"), cancellationToken);
-                            state.User.Add("UserSSOToken", tokenResponse.Token);
-                            await state.SaveStateAsync(context, _storage).ConfigureAwait(false);
-                            await _redoUserTaskAsync().ConfigureAwait(false);
-                        }
+                        await context.SendActivityAsync("User login success! Processing your question...", cancellationToken: cancellationToken);
+                        state.User.Add("UserToken", tokenResponse.Token);
+                        await state.SaveStateAsync(context, _storage).ConfigureAwait(false);
 
                         if (await ShouldDedup(context))
                         {
                             state.Temp.DuplicateTokenExchange = true;
                             return Dialog.EndOfTurn;
                         }
+                    }
+                    else
+                    {
+                        _logger.LogWarning($"User login failed! Please try again. Result: {JsonConvert.SerializeObject(step.Result)}");
+                        await context.SendActivityAsync($"User login failed! Please try again. Result: {JsonConvert.SerializeObject(step.Result)}", cancellationToken: cancellationToken);
                     }
                     return await step.EndDialogAsync(step.Result);
                 }

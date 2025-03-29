@@ -70,7 +70,12 @@ namespace Microsoft.Teams.AI
                 {
                     Prompt = messageActivity,
                 };
-
+                var hasQuestionValue = state.Conversation.TryGetValue("QuestionActivity", out object? questionActivity);
+                if (hasQuestionValue)
+                {
+                    state.Conversation.Remove("QuestionActivity");
+                }
+                state.Conversation.Add("QuestionActivity", context.Activity);
                 results = await dialogContext.BeginDialogAsync(this._oauthPrompt.Id, options, cancellationToken);
             }
             return results;

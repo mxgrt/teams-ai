@@ -240,6 +240,12 @@ namespace Microsoft.Teams.AI
                 value = new();
             }
 
+            var hasValue = value.TryGetValue("settingName", out JToken? _);
+            if (hasValue)
+            {
+                value.Remove("settingName");
+            }
+
             value.Add("settingName", settingName);
             context.Activity.Value = value;
 
