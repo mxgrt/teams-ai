@@ -49,7 +49,7 @@ namespace Microsoft.Teams.AI
                 }
                 else if (setting is TeamsSsoSettings teamsSsoSettings)
                 {
-                    _authentications.Add(key, new TeamsSsoAuthentication<TState>(app, key, teamsSsoSettings, storage, redoUserActionAsync, logger));
+                    _authentications.Add(key, new TeamsSsoAuthentication<TState>(app, key, teamsSsoSettings, storage));
                 }
             }
         }
