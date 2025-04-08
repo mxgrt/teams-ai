@@ -35,6 +35,11 @@ namespace Microsoft.Teams.AI
         public IStorage? Storage { get; set; }
 
         /// <summary>
+        /// Optional. Storage provider to use to maintain authentication state
+        /// </summary>
+        public IStorage? AuthStorage { get; set; }
+
+        /// <summary>
         /// Optional. Options used to customize the processing of Adaptive Card requests.
         /// </summary>
         public AdaptiveCardsOptions? AdaptiveCards { get; set; }

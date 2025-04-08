@@ -96,12 +96,14 @@ namespace Microsoft.Teams.AI
             {
                 async (step, cancellationToken) =>
                 {
+                    CustomExtension.TryAddQuestionActivity(state, context.Activity);
+
                     return await step.BeginDialogAsync(this._prompt.Id);
                 },
                 async (step, cancellationToken) =>
                 {
                     TokenResponse? tokenResponse = step.Result as TokenResponse;
-                    if (tokenResponse != null && await ShouldDedup(context))
+                   if (tokenResponse != null && await ShouldDedup(context))
                     {
                         state.Temp.DuplicateTokenExchange = true;
                         return Dialog.EndOfTurn;

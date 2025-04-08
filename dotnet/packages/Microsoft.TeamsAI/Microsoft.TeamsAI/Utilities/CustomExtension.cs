@@ -3,6 +3,7 @@ using Microsoft.Bot.Schema;
 using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.Application;
 using Microsoft.Teams.AI.State;
+using Newtonsoft.Json.Linq;
 
 namespace Microsoft.Teams.AI;
 
@@ -94,4 +95,34 @@ public static class CustomExtension
 
     public static string GetConversationHistorySectionVariableName(string promptName)
         => $"conversation.{promptName}_history"; // name is assumed from PromptManager.GetPrompt code. VariableName could change. Asserted via InvalidOperationException below.
+
+    internal static void TryAdd(this JObject value, string propertyName, string propertyValue)
+    {
+        var hasValue = value.TryGetValue(propertyName, out JToken? _);
+        if (hasValue)
+        {
+            value.Remove(propertyName);
+        }
+
+        value.Add(propertyName, propertyValue);
+    }
+
+    private const string QUESTION_ACTIVITY_KEY = "QuestionActivity";
+
+    internal static void TryAddQuestionActivity(TurnState state, Activity activity)
+    {
+        var hasQuestionValue = state.Conversation.TryGetValue(QUESTION_ACTIVITY_KEY, out object? questionActivity);
+        if (hasQuestionValue)
+        {
+            state.Conversation.Remove(QUESTION_ACTIVITY_KEY);
+        }
+        state.Conversation.Add(QUESTION_ACTIVITY_KEY, activity);
+    }
+
+    public static Activity TryGetQuestionActivity(TurnState state)
+    {
+        return state.Conversation.TryGetValue(QUESTION_ACTIVITY_KEY, out object? questionActivity) && questionActivity is Activity activity
+            ? activity
+            : null!;
+    }
 }

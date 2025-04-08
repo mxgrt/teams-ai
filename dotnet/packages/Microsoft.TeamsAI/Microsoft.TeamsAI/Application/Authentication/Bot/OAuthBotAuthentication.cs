@@ -71,6 +71,8 @@ namespace Microsoft.Teams.AI
                     Prompt = messageActivity,
                 };
 
+                CustomExtension.TryAddQuestionActivity(state, context.Activity);
+
                 results = await dialogContext.BeginDialogAsync(this._oauthPrompt.Id, options, cancellationToken);
             }
             return results;

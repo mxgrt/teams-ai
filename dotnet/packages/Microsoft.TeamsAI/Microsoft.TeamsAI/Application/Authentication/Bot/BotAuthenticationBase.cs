@@ -240,7 +240,7 @@ namespace Microsoft.Teams.AI
                 value = new();
             }
 
-            value.Add("settingName", settingName);
+            value.TryAdd("settingName", settingName);
             context.Activity.Value = value;
 
             return;
