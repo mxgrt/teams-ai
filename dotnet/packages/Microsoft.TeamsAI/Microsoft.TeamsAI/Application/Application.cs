@@ -679,7 +679,8 @@ namespace Microsoft.Teams.AI
                     {
                         Value = response.TaskInfo
                     };
-                } else
+                }
+                else
                 {
                     result.Task = new TaskModuleMessageResponse()
                     {

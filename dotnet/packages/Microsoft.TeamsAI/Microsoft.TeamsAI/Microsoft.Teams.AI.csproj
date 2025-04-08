@@ -30,7 +30,7 @@
       Suppress a warning about upcoming deprecation of PackageLicenseUrl. When embedding licenses are supported,
       replace PackageLicenseUrl with PackageLicenseExpression.
     -->
-    <NoWarn>NU5125</NoWarn>
+    <NoWarn>$(NoWarn);NU5125;CS8602;CS1572;CS8625;CS1591;CS1573</NoWarn>
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <IncludeSymbols>true</IncludeSymbols>
   </PropertyGroup>
