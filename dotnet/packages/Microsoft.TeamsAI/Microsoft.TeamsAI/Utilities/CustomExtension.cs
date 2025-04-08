@@ -107,7 +107,7 @@ public static class CustomExtension
         value.Add(propertyName, propertyValue);
     }
 
-    private const string QUESTION_ACTIVITY_KEY = "QuestionActivity";
+    private const string QUESTION_ACTIVITY_KEY = "SYSTEM_QuestionActivity";
 
     internal static void TryAddQuestionActivity(TurnState state, Activity activity)
     {
