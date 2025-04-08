@@ -98,7 +98,7 @@ namespace Microsoft.Teams.AI
 
             if (options.Authentication != null)
             {
-                _authentication = new AuthenticationManager<TState>(this, options.Authentication, options.Storage, logger, redoUserActionAsync);
+                _authentication = new AuthenticationManager<TState>(this, options.Authentication, options.AuthStorage, logger, redoUserActionAsync);
 
                 if (options.Authentication.AutoSignIn != null)
                 {
