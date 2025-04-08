@@ -1,5 +1,6 @@
 ﻿using System.ClientModel.Primitives;
 using Microsoft.Bot.Builder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Teams.AI.AI.Clients;
 using Microsoft.Teams.AI.AI.Models;
 using Microsoft.Teams.AI.AI.Prompts;
@@ -615,7 +616,7 @@ namespace Microsoft.Teams.AI.Tests.AITests
                             Content = content,
                         }
                     };
-                    StreamingResponse streamer = new(turnContext);
+                    StreamingResponse streamer = new(turnContext, new Mock<ILogger>().Object);
                     ResponseReceivedEventArgs responseReceivedEventArgs = new(turnContext, memory, response, streamer);
 
                     model.Events.OnResponseReceived(responseReceivedEventArgs);

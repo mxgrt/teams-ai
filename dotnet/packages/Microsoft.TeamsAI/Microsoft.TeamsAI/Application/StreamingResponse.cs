@@ -223,7 +223,7 @@ namespace Microsoft.Teams.AI.Application
             }
             catch (Exception ex)
             {
-                this._logger.LogWarning(ex, "Exception in StreamingResponse.EndStream");
+                this._logger?.LogWarning(ex, "Exception in StreamingResponse.EndStream");
                 return Task.CompletedTask;
             }
         }
